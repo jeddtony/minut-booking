@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -22,76 +22,83 @@ import {
 } from 'lucide-react'
 import NewReservationModal from '../components/NewReservationModal'
 import NewReservationBottomSheet from '../components/NewReservationBottomSheet'
+import { api, RentalUnit, Reservation, getUnitId, getUnitName } from '../api'
 
-type ReservationStatus = 'Active' | 'Confirmed' | 'Upcoming' | 'Pending' | 'Completed'
+type ReservationStatus = 'Active' | 'Confirmed' | 'Completed'
 
-interface Reservation {
-  id: number
+interface ReservationItem {
+  _id: string
   guest: string
   initials: string
   avatarCls: string
   unit: string
-  unitShort: string
   checkIn: string
   checkOut: string
   status: ReservationStatus
 }
 
-const reservations: Reservation[] = [
-  {
-    id: 1,
-    guest: 'Julian Alexander',
-    initials: 'JA',
-    avatarCls: 'bg-secondary-container text-on-secondary-container',
-    unit: 'Penthouse Suite • Unit 402',
-    unitShort: 'Penthouse Suite',
-    checkIn: 'Oct 12, 2023',
-    checkOut: 'Oct 18, 2023',
-    status: 'Active',
-  },
-  {
-    id: 2,
-    guest: 'Sarah Mitchell',
-    initials: 'SM',
-    avatarCls: 'bg-primary-fixed text-on-primary-fixed',
-    unit: 'Garden Loft • Unit 105',
-    unitShort: 'Garden Loft',
-    checkIn: 'Oct 14, 2023',
-    checkOut: 'Oct 21, 2023',
-    status: 'Confirmed',
-  },
-  {
-    id: 3,
-    guest: 'David Chen',
-    initials: 'DC',
-    avatarCls: 'bg-tertiary-fixed text-on-tertiary-fixed',
-    unit: 'Skyline Studio • Unit 901',
-    unitShort: 'Skyline Studio',
-    checkIn: 'Oct 15, 2023',
-    checkOut: 'Oct 16, 2023',
-    status: 'Pending',
-  },
-  {
-    id: 4,
-    guest: 'Elena Rodriguez',
-    initials: 'ER',
-    avatarCls: 'bg-surface-container-highest text-on-surface-variant',
-    unit: 'Urban Suite • Unit 203',
-    unitShort: 'Urban Suite',
-    checkIn: 'Oct 18, 2023',
-    checkOut: 'Oct 25, 2023',
-    status: 'Confirmed',
-  },
-]
-
 const statusStyles: Record<ReservationStatus, string> = {
   Active:    'bg-primary text-on-primary',
   Confirmed: 'bg-secondary-container text-on-secondary-container',
-  Upcoming:  'bg-secondary-fixed text-on-secondary-fixed',
-  Pending:   'bg-tertiary-fixed text-on-tertiary-fixed-variant',
   Completed: 'bg-surface-variant text-on-surface-variant',
 }
 
+const AVATAR_CLS = [
+  'bg-secondary-container text-on-secondary-container',
+  'bg-primary-fixed text-on-primary-fixed',
+  'bg-tertiary-fixed text-on-tertiary-fixed',
+  'bg-surface-container-highest text-on-surface-variant',
+]
+
+function avatarColorFor(name: string): string {
+  const n = name.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
+  return AVATAR_CLS[n % AVATAR_CLS.length]
+}
+
+function initialsFor(name: string): string {
+  return name.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase()
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function deriveStatus(startDate: string, endDate: string): ReservationStatus {
+  const now = new Date()
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+  if (end < now) return 'Completed'
+  if (start <= now) return 'Active'
+  return 'Confirmed'
+}
+
+function toItem(r: Reservation): ReservationItem {
+  return {
+    _id: r._id,
+    guest: r.guestName,
+    initials: initialsFor(r.guestName),
+    avatarCls: avatarColorFor(r.guestName),
+    unit: getUnitName(r.rentalUnitId),
+    checkIn: formatDate(r.startDate),
+    checkOut: formatDate(r.endDate),
+    status: deriveStatus(r.startDate, r.endDate),
+  }
+}
+
+function monthlyCapacity(reservations: Reservation[], totalUnits: number): number {
+  if (totalUnits === 0) return 0
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
+  const occupied = new Set(
+    reservations
+      .filter(r => new Date(r.startDate) <= monthEnd && new Date(r.endDate) >= monthStart)
+      .map(r => getUnitId(r.rentalUnitId))
+  )
+  return Math.round((occupied.size / totalUnits) * 100)
+}
+
+// ─── Status badge ─────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: ReservationStatus }) {
   return (
     <span className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold tracking-wider uppercase ${statusStyles[status]}`}>
@@ -101,7 +108,7 @@ function StatusBadge({ status }: { status: ReservationStatus }) {
 }
 
 // ─── Mobile card ──────────────────────────────────────────────────────────────
-function ReservationCard({ r }: { r: Reservation }) {
+function ReservationCard({ r }: { r: ReservationItem }) {
   return (
     <div className="bg-white border border-outline-variant rounded-xl p-5 shadow-card flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-primary/40 transition-all duration-200 cursor-pointer">
       <div className="flex items-center gap-4">
@@ -125,7 +132,7 @@ function ReservationCard({ r }: { r: Reservation }) {
 }
 
 // ─── Desktop table row ────────────────────────────────────────────────────────
-function ReservationRow({ r, alt }: { r: Reservation; alt: boolean }) {
+function ReservationTableRow({ r, alt }: { r: ReservationItem; alt: boolean }) {
   return (
     <tr className={`${alt ? 'bg-surface-container-lowest' : ''} hover:bg-surface-container-lowest transition-colors duration-150`}>
       <td className="px-6 py-4">
@@ -136,7 +143,7 @@ function ReservationRow({ r, alt }: { r: Reservation; alt: boolean }) {
           <span className="text-sm font-medium text-on-surface">{r.guest}</span>
         </div>
       </td>
-      <td className="px-6 py-4 text-sm text-on-surface-variant">{r.unitShort}</td>
+      <td className="px-6 py-4 text-sm text-on-surface-variant">{r.unit}</td>
       <td className="px-6 py-4 text-sm text-on-surface">{r.checkIn}</td>
       <td className="px-6 py-4 text-sm text-on-surface">{r.checkOut}</td>
       <td className="px-6 py-4"><StatusBadge status={r.status} /></td>
@@ -152,9 +159,51 @@ function ReservationRow({ r, alt }: { r: Reservation; alt: boolean }) {
   )
 }
 
+// ─── Skeletons ────────────────────────────────────────────────────────────────
+function CardSkeleton() {
+  return (
+    <div className="bg-white border border-outline-variant rounded-xl p-5 shadow-card animate-pulse flex items-center gap-4">
+      <div className="w-12 h-12 rounded-full bg-slate-200 shrink-0" />
+      <div className="flex-1 space-y-2">
+        <div className="h-5 bg-slate-200 rounded w-1/2" />
+        <div className="h-4 bg-slate-200 rounded w-1/3" />
+      </div>
+    </div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function ReservationsPage() {
   const [reservationOpen, setReservationOpen] = useState(false)
+  const [items, setItems] = useState<ReservationItem[]>([])
+  const [rawUnits, setRawUnits] = useState<RentalUnit[]>([])
+  const [loading, setLoading] = useState(true)
+  const [capacity, setCapacity] = useState(0)
+  const [arrivingToday, setArrivingToday] = useState(0)
+  const [departingToday, setDepartingToday] = useState(0)
+
+  const fetchData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [units, reservations] = await Promise.all([
+        api.rentalUnits.list(),
+        api.reservations.list(),
+      ])
+      setRawUnits(units)
+      setItems(reservations.map(toItem))
+      setCapacity(monthlyCapacity(reservations, units.length))
+
+      const todayStr = new Date().toDateString()
+      setArrivingToday(reservations.filter(r => new Date(r.startDate).toDateString() === todayStr).length)
+      setDepartingToday(reservations.filter(r => new Date(r.endDate).toDateString() === todayStr).length)
+    } catch {
+      // silently fail — UI shows empty state
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { fetchData() }, [fetchData])
 
   return (
     <>
@@ -232,7 +281,7 @@ export default function ReservationsPage() {
               <div className="hidden md:flex flex-wrap items-center gap-3 shrink-0">
                 <button className="flex items-center gap-2 bg-white border border-outline-variant rounded-lg px-4 py-2.5 shadow-sm hover:bg-surface-container-low transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary">
                   <CalendarDays size={15} className="text-on-surface-variant" />
-                  <span className="text-sm font-medium text-on-surface">Oct 12 – Oct 28, 2023</span>
+                  <span className="text-sm font-medium text-on-surface">This Month</span>
                   <ChevronDown size={15} className="text-on-surface-variant" />
                 </button>
                 <button className="flex items-center gap-2 bg-white border border-outline-variant rounded-lg px-4 py-2.5 shadow-sm hover:bg-surface-container-low transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary">
@@ -258,7 +307,7 @@ export default function ReservationsPage() {
               </div>
             </div>
 
-            {/* 12-col grid: reservations + stats sidebar */}
+            {/* 12-col grid */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
               {/* Left column: cards (mobile) + table (desktop) */}
@@ -266,9 +315,12 @@ export default function ReservationsPage() {
 
                 {/* Mobile card list */}
                 <div className="md:hidden space-y-3">
-                  {reservations.map(r => (
-                    <ReservationCard key={r.id} r={r} />
-                  ))}
+                  {loading
+                    ? Array.from({ length: 3 }).map((_, i) => <CardSkeleton key={i} />)
+                    : items.length === 0
+                      ? <p className="text-center py-12 text-on-surface-variant text-sm">No reservations yet.</p>
+                      : items.map(r => <ReservationCard key={r._id} r={r} />)
+                  }
                 </div>
 
                 {/* Desktop table */}
@@ -288,9 +340,26 @@ export default function ReservationsPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-outline-variant">
-                        {reservations.map((r, i) => (
-                          <ReservationRow key={r.id} r={r} alt={i % 2 === 1} />
-                        ))}
+                        {loading
+                          ? Array.from({ length: 4 }).map((_, i) => (
+                            <tr key={i} className={i % 2 === 1 ? 'bg-surface-container-lowest' : ''}>
+                              {Array.from({ length: 6 }).map((__, j) => (
+                                <td key={j} className="px-6 py-4">
+                                  <div className="h-4 bg-slate-200 rounded animate-pulse" style={{ width: j === 0 ? '140px' : '80px' }} />
+                                </td>
+                              ))}
+                            </tr>
+                          ))
+                          : items.length === 0
+                            ? (
+                              <tr>
+                                <td colSpan={6} className="px-6 py-12 text-center text-sm text-on-surface-variant">
+                                  No reservations yet. Click <strong>New Reservation</strong> to get started.
+                                </td>
+                              </tr>
+                            )
+                            : items.map((r, i) => <ReservationTableRow key={r._id} r={r} alt={i % 2 === 1} />)
+                        }
                       </tbody>
                     </table>
                   </div>
@@ -298,7 +367,7 @@ export default function ReservationsPage() {
                   {/* Pagination */}
                   <div className="px-6 py-4 border-t border-outline-variant flex items-center justify-between bg-surface-container-lowest">
                     <p className="text-xs text-on-surface-variant">
-                      Showing {reservations.length} of 124 reservations
+                      Showing {items.length} reservation{items.length !== 1 ? 's' : ''}
                     </p>
                     <div className="flex items-center gap-1.5">
                       <button className="w-8 h-8 flex items-center justify-center rounded border border-outline-variant text-on-surface-variant hover:bg-surface-container transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary">
@@ -306,9 +375,6 @@ export default function ReservationsPage() {
                       </button>
                       <button className="w-8 h-8 flex items-center justify-center rounded border border-outline-variant bg-primary text-on-primary text-sm font-medium cursor-pointer">
                         1
-                      </button>
-                      <button className="w-8 h-8 flex items-center justify-center rounded border border-outline-variant text-on-surface-variant hover:bg-surface-container transition-colors duration-200 text-sm font-medium cursor-pointer">
-                        2
                       </button>
                       <button className="w-8 h-8 flex items-center justify-center rounded border border-outline-variant text-on-surface-variant hover:bg-surface-container transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary">
                         <ChevronRight size={15} />
@@ -329,8 +395,8 @@ export default function ReservationsPage() {
                     <p className="text-[11px] font-semibold uppercase tracking-wider opacity-80">Monthly Capacity</p>
                   </div>
                   <div>
-                    <div className="text-[40px] font-bold leading-none">84%</div>
-                    <p className="text-xs opacity-90 mt-1">+12% from last month</p>
+                    <div className="text-[40px] font-bold leading-none">{capacity}%</div>
+                    <p className="text-xs opacity-90 mt-1">Units with active reservations this month</p>
                   </div>
                 </div>
 
@@ -339,9 +405,9 @@ export default function ReservationsPage() {
                   <h3 className="text-[18px] font-semibold text-on-surface mb-5">Quick Summary</h3>
                   <div className="space-y-4">
                     {[
-                      { label: 'Arriving Today', value: 12 },
-                      { label: 'Departing Today', value: 8 },
-                      { label: 'New Bookings', value: 24 },
+                      { label: 'Arriving Today',   value: arrivingToday },
+                      { label: 'Departing Today',  value: departingToday },
+                      { label: 'Total Reservations', value: items.length },
                     ].map(({ label, value }) => (
                       <div key={label} className="flex justify-between items-center">
                         <span className="text-sm text-on-surface-variant">{label}</span>
@@ -362,10 +428,10 @@ export default function ReservationsPage() {
           aria-label="Mobile navigation"
         >
           {[
-            { icon: LayoutGrid, label: 'Dashboard', active: false, to: '/' },
-            { icon: Building, label: 'Units', active: false, to: '/' },
-            { icon: CalendarDays, label: 'Booking', active: true, to: '/reservations' },
-            { icon: User, label: 'Profile', active: false, to: '#' },
+            { icon: LayoutGrid,   label: 'Dashboard', active: false, to: '/' },
+            { icon: Building,     label: 'Units',     active: false, to: '/' },
+            { icon: CalendarDays, label: 'Booking',   active: true,  to: '/reservations' },
+            { icon: User,         label: 'Profile',   active: false, to: '#' },
           ].map(({ icon: Icon, label, active, to }) => (
             <Link
               key={label}
@@ -381,7 +447,7 @@ export default function ReservationsPage() {
 
       </div>
 
-      {/* FAB — mobile only, outside animated wrapper to avoid stacking context */}
+      {/* FAB — mobile only */}
       <button
         onClick={() => setReservationOpen(true)}
         aria-label="New reservation"
@@ -390,9 +456,8 @@ export default function ReservationsPage() {
         <Plus size={24} />
       </button>
 
-      {/* Reservation overlays — outside animated wrapper */}
-      <NewReservationModal isOpen={reservationOpen} onClose={() => setReservationOpen(false)} />
-      <NewReservationBottomSheet isOpen={reservationOpen} onClose={() => setReservationOpen(false)} />
+      <NewReservationModal       isOpen={reservationOpen} onClose={() => setReservationOpen(false)} units={rawUnits} onSuccess={fetchData} />
+      <NewReservationBottomSheet isOpen={reservationOpen} onClose={() => setReservationOpen(false)} units={rawUnits} onSuccess={fetchData} />
     </>
   )
 }

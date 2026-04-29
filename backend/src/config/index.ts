@@ -12,3 +12,6 @@ export const LOG_FORMAT: string = process.env.LOG_FORMAT ?? 'dev';
 export const LOG_DIR: string = process.env.LOG_DIR ?? '../logs';
 export const ORIGIN: string = process.env.ORIGIN ?? '*';
 export const CREDENTIALS: boolean = process.env.CREDENTIALS === 'true';
+
+export const AWS_REGION: string = process.env.AWS_REGION ?? 'us-east-1';
+export const AWS_S3_BUCKET: string = process.env.AWS_S3_BUCKET ?? '';

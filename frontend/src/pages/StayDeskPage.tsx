@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -17,126 +17,159 @@ import {
   Building,
   CalendarDays,
   User,
+  Pencil,
 } from 'lucide-react'
 import NewReservationModal from '../components/NewReservationModal'
 import NewReservationBottomSheet from '../components/NewReservationBottomSheet'
 import AddPropertyModal from '../components/AddPropertyModal'
 import AddPropertyBottomSheet from '../components/AddPropertyBottomSheet'
+import { api, RentalUnit, Reservation, getUnitId } from '../api'
 
-type StatusType = 'Available' | 'Occupied' | 'Maintenance'
+type StatusType = 'Available' | 'Occupied'
 type FilterType = 'all' | 'available' | 'occupied'
+type PropertyModal = { mode: 'add' } | { mode: 'edit'; unit: RentalUnit } | null
 
-interface Property {
-  id: number
+interface UnitDisplay {
+  _id: string
   name: string
   price: number
   address: string
   status: StatusType
-  reservations: number
-  guestCount: number
+  reservationCount: number
   gradient: string
   initials: string
+  imageUrl?: string | null
+  raw: RentalUnit
 }
 
-const properties: Property[] = [
-  {
-    id: 1,
-    name: 'Skyline Loft A4',
-    price: 240,
-    address: '1200 Market Street, San Francisco',
-    status: 'Available',
-    reservations: 3,
-    guestCount: 2,
-    gradient: 'from-slate-400 to-slate-600',
-    initials: 'SL',
-  },
-  {
-    id: 2,
-    name: 'Garden Terrace Suite',
-    price: 185,
-    address: '450 Valencia St, San Francisco',
-    status: 'Occupied',
-    reservations: 5,
-    guestCount: 1,
-    gradient: 'from-emerald-400 to-teal-600',
-    initials: 'GT',
-  },
-  {
-    id: 3,
-    name: 'The Penthouse 12B',
-    price: 450,
-    address: '1 Bush St, Financial District',
-    status: 'Maintenance',
-    reservations: 1,
-    guestCount: 0,
-    gradient: 'from-slate-600 to-slate-800',
-    initials: 'P1',
-  },
-  {
-    id: 4,
-    name: 'Marina Bay View',
-    price: 310,
-    address: '300 Beach St, North Beach',
-    status: 'Available',
-    reservations: 8,
-    guestCount: 1,
-    gradient: 'from-blue-400 to-cyan-600',
-    initials: 'MB',
-  },
-  {
-    id: 5,
-    name: 'Hayes Valley Studio',
-    price: 160,
-    address: '512 Gough St, Hayes Valley',
-    status: 'Available',
-    reservations: 2,
-    guestCount: 1,
-    gradient: 'from-amber-300 to-orange-500',
-    initials: 'HV',
-  },
+const GRADIENTS = [
+  'from-slate-400 to-slate-600',
+  'from-emerald-400 to-teal-600',
+  'from-slate-600 to-slate-800',
+  'from-sky-400 to-indigo-600',
+  'from-rose-400 to-pink-600',
+  'from-amber-400 to-orange-600',
+  'from-violet-400 to-purple-600',
+  'from-cyan-400 to-blue-600',
 ]
 
-// Card grid: badge overlay styling
-const statusConfig: Record<StatusType, { bg: string; text: string; label: string }> = {
-  Available: { bg: 'bg-white/90', text: 'text-teal-600', label: 'Available' },
-  Occupied: { bg: 'bg-error-container', text: 'text-on-error-container', label: 'Occupied' },
-  Maintenance: { bg: 'bg-secondary-container', text: 'text-on-secondary-container', label: 'Maintenance' },
+function gradientFor(id: string) {
+  const n = id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
+  return GRADIENTS[n % GRADIENTS.length]
 }
 
-// List view: pill styling
+function initialsFor(name: string) {
+  return name.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase()
+}
+
+function computeStatus(unitId: string, reservations: Reservation[]): StatusType {
+  const today = new Date()
+  const active = reservations.some(r => {
+    if (getUnitId(r.rentalUnitId) !== unitId) return false
+    return new Date(r.startDate) <= today && new Date(r.endDate) >= today
+  })
+  return active ? 'Occupied' : 'Available'
+}
+
+function reservationCountFor(unitId: string, reservations: Reservation[]) {
+  return reservations.filter(r => getUnitId(r.rentalUnitId) === unitId).length
+}
+
+function toDisplay(u: RentalUnit, reservations: Reservation[]): UnitDisplay {
+  return {
+    _id: u._id,
+    name: u.name,
+    price: u.pricePerNight,
+    address: [u.address, u.city, u.state].filter(Boolean).join(', '),
+    status: computeStatus(u._id, reservations),
+    reservationCount: reservationCountFor(u._id, reservations),
+    gradient: gradientFor(u._id),
+    initials: initialsFor(u.name),
+    imageUrl: u.imageUrl,
+    raw: u,
+  }
+}
+
+const statusConfig: Record<StatusType, { label: string; bg: string; text: string }> = {
+  Available: { label: 'Available', bg: 'bg-emerald-500/80', text: 'text-white' },
+  Occupied:  { label: 'Occupied',  bg: 'bg-slate-700/80',  text: 'text-white' },
+}
+
 const statusListConfig: Record<StatusType, string> = {
-  Available: 'bg-teal-50 text-teal-700 border border-teal-100',
-  Occupied: 'bg-error-container text-on-error-container border border-error/10',
-  Maintenance: 'bg-secondary-container text-on-secondary-container border border-secondary/10',
+  Available: 'bg-emerald-100 text-emerald-800',
+  Occupied:  'bg-slate-100 text-slate-700',
 }
 
-const avatarColors = [
-  'bg-teal-200 text-teal-800',
-  'bg-blue-200 text-blue-800',
-  'bg-amber-200 text-amber-800',
-]
+// ─── Shared card menu ─────────────────────────────────────────────────────────
+function CardMenu({ onEdit }: { onEdit: () => void }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="relative">
+      <button
+        aria-label="More options"
+        onClick={(e) => { e.stopPropagation(); setOpen(v => !v) }}
+        className="bg-white/90 backdrop-blur-sm p-1.5 rounded-full cursor-pointer hover:bg-white transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary"
+      >
+        <MoreVertical size={16} className="text-slate-600" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-[1]" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-slate-200 z-[2] min-w-[130px] py-1">
+            <button
+              onClick={() => { onEdit(); setOpen(false) }}
+              className="w-full text-left px-4 py-2 text-sm text-on-surface hover:bg-surface-container transition-colors duration-150 cursor-pointer flex items-center gap-2"
+            >
+              <Pencil size={13} className="text-on-surface-variant" />
+              Edit
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function ListMenu({ onEdit }: { onEdit: () => void }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="relative">
+      <button
+        aria-label="More options"
+        onClick={(e) => { e.stopPropagation(); setOpen(v => !v) }}
+        className="p-2 text-on-surface-variant hover:bg-surface-container rounded-full transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary"
+      >
+        <MoreVertical size={18} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-[1]" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-slate-200 z-[2] min-w-[130px] py-1">
+            <button
+              onClick={() => { onEdit(); setOpen(false) }}
+              className="w-full text-left px-4 py-2 text-sm text-on-surface hover:bg-surface-container transition-colors duration-150 cursor-pointer flex items-center gap-2"
+            >
+              <Pencil size={13} className="text-on-surface-variant" />
+              Edit
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── Guest avatars ─────────────────────────────────────────────────────────────
+const AVATAR_COLORS = ['bg-teal-400', 'bg-sky-400', 'bg-indigo-400']
 
 function GuestAvatars({ count }: { count: number }) {
-  if (count === 0) {
-    return (
-      <div className="flex -space-x-2">
-        <div className="w-6 h-6 rounded-full bg-slate-50 border-2 border-white flex items-center justify-center">
-          <span className="text-[8px] font-bold text-slate-300">N/A</span>
-        </div>
-      </div>
-    )
-  }
-  const shown = Math.min(count, 2)
-  const extra = count - shown
+  const show = Math.min(count, 3)
+  const extra = count - show
+  if (count === 0) return <span className="text-xs text-on-surface-variant">No reservations</span>
   return (
     <div className="flex -space-x-2">
-      {Array.from({ length: shown }).map((_, i) => (
-        <div
-          key={i}
-          className={`w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[8px] font-bold ${avatarColors[i % avatarColors.length]}`}
-        >
-          {String.fromCharCode(65 + i)}
-        </div>
+      {Array.from({ length: show }).map((_, i) => (
+        <div key={i} className={`w-6 h-6 rounded-full border-2 border-white ${AVATAR_COLORS[i % AVATAR_COLORS.length]}`} />
       ))}
       {extra > 0 && (
         <div className="w-6 h-6 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center">
@@ -147,21 +180,23 @@ function GuestAvatars({ count }: { count: number }) {
   )
 }
 
-// ─── Desktop card grid item ───────────────────────────────────────────────────
-function PropertyCard({ property }: { property: Property }) {
+// ─── Desktop card ─────────────────────────────────────────────────────────────
+function PropertyCard({ property, onEdit }: { property: UnitDisplay; onEdit: () => void }) {
   const status = statusConfig[property.status]
   return (
     <div className="group bg-white border border-outline-variant rounded-xl overflow-hidden shadow-card hover:shadow-card-hover transition-shadow duration-300 cursor-pointer">
       <div className="relative h-48">
-        <div className={`w-full h-full bg-gradient-to-br ${property.gradient} flex items-center justify-center`}>
-          <span className="text-white text-4xl font-bold opacity-40">{property.initials}</span>
+        {property.imageUrl
+          ? <img src={property.imageUrl} alt={property.name} className="w-full h-full object-cover" />
+          : (
+            <div className={`w-full h-full bg-gradient-to-br ${property.gradient} flex items-center justify-center`}>
+              <span className="text-white text-4xl font-bold opacity-40">{property.initials}</span>
+            </div>
+          )
+        }
+        <div className="absolute top-3 right-3">
+          <CardMenu onEdit={onEdit} />
         </div>
-        <button
-          aria-label="More options"
-          className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm p-1.5 rounded-full cursor-pointer hover:bg-white transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary"
-        >
-          <MoreVertical size={16} className="text-slate-600" />
-        </button>
         <div className="absolute bottom-3 left-3">
           <span className={`${status.bg} backdrop-blur-sm ${status.text} font-bold px-2 py-1 rounded text-[10px] uppercase tracking-wide`}>
             {status.label}
@@ -178,10 +213,10 @@ function PropertyCard({ property }: { property: Property }) {
           {property.address}
         </p>
         <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-          <GuestAvatars count={property.guestCount} />
+          <GuestAvatars count={property.reservationCount} />
           <span className="bg-primary-fixed-dim/30 text-on-primary-fixed-variant px-2 py-1 rounded-full text-[11px] font-semibold tracking-wide flex items-center gap-1">
             <Calendar size={12} />
-            {property.reservations} {property.reservations === 1 ? 'Reservation' : 'Reservations'}
+            {property.reservationCount} {property.reservationCount === 1 ? 'Reservation' : 'Reservations'}
           </span>
         </div>
       </div>
@@ -204,70 +239,119 @@ function NewListingCard() {
 }
 
 // ─── Mobile list row ──────────────────────────────────────────────────────────
-function UnitListItem({ property }: { property: Property }) {
+function UnitListItem({ property, onEdit }: { property: UnitDisplay; onEdit: () => void }) {
   return (
-    <div className="bg-white border border-slate-200 rounded p-4 flex items-center gap-4 shadow-card hover:shadow-card-hover transition-shadow duration-200 cursor-pointer">
-      {/* Thumbnail */}
-      <div className={`w-16 h-16 rounded overflow-hidden flex-shrink-0 bg-gradient-to-br ${property.gradient} flex items-center justify-center`}>
-        <span className="text-white text-xl font-bold opacity-40">{property.initials}</span>
+    <div className="bg-white border border-slate-200 rounded p-4 flex items-center gap-4 shadow-card hover:shadow-card-hover transition-shadow duration-200">
+      <div className="w-16 h-16 rounded overflow-hidden flex-shrink-0">
+        {property.imageUrl
+          ? <img src={property.imageUrl} alt={property.name} className="w-full h-full object-cover" />
+          : (
+            <div className={`w-full h-full bg-gradient-to-br ${property.gradient} flex items-center justify-center`}>
+              <span className="text-white text-xl font-bold opacity-40">{property.initials}</span>
+            </div>
+          )
+        }
       </div>
 
-      {/* Info */}
       <div className="flex-1 min-w-0">
         <h3 className="font-semibold text-[18px] leading-snug text-on-surface truncate">{property.name}</h3>
         <p className="text-xs text-on-surface-variant truncate mt-0.5">{property.address}</p>
       </div>
 
-      {/* Status pill + menu */}
       <div className="flex items-center gap-3 shrink-0">
         <span className={`px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide hidden sm:block ${statusListConfig[property.status]}`}>
           {property.status.toUpperCase()}
         </span>
-        <button
-          aria-label="More options"
-          className="p-2 text-on-surface-variant hover:bg-surface-container rounded-full transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary"
-        >
-          <MoreVertical size={18} />
-        </button>
+        <ListMenu onEdit={onEdit} />
       </div>
     </div>
   )
 }
 
-// ─── Navigation config ────────────────────────────────────────────────────────
+// ─── Skeletons ─────────────────────────────────────────────────────────────────
+function CardSkeleton() {
+  return (
+    <div className="bg-white border border-outline-variant rounded-xl overflow-hidden shadow-card animate-pulse">
+      <div className="h-48 bg-slate-200" />
+      <div className="p-6 space-y-3">
+        <div className="h-5 bg-slate-200 rounded w-3/4" />
+        <div className="h-4 bg-slate-200 rounded w-1/2" />
+      </div>
+    </div>
+  )
+}
+
+function ListSkeleton() {
+  return (
+    <div className="bg-white border border-slate-200 rounded p-4 animate-pulse flex items-center gap-4">
+      <div className="w-16 h-16 rounded bg-slate-200 shrink-0" />
+      <div className="flex-1 space-y-2">
+        <div className="h-4 bg-slate-200 rounded w-2/3" />
+        <div className="h-3 bg-slate-200 rounded w-1/2" />
+      </div>
+    </div>
+  )
+}
+
+// ─── Nav config ───────────────────────────────────────────────────────────────
 const navItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', active: false, to: '/' },
-  { icon: Building2, label: 'Units', active: true, to: '/' },
-  { icon: CalendarCheck, label: 'Reservations', active: false, to: '/reservations' },
+  { icon: LayoutDashboard, label: 'Dashboard',   active: false, to: '/' },
+  { icon: Building2,       label: 'Units',        active: true,  to: '/' },
+  { icon: CalendarCheck,   label: 'Reservations', active: false, to: '/reservations' },
 ]
 
 const bottomNavItems = [
-  { icon: LayoutGrid, label: 'Dashboard', active: false, to: '/' },
-  { icon: Building, label: 'Units', active: true, to: '/' },
-  { icon: CalendarDays, label: 'Booking', active: false, to: '/reservations' },
-  { icon: User, label: 'Profile', active: false, to: '#' },
+  { icon: LayoutGrid,   label: 'Dashboard', active: false, to: '/' },
+  { icon: Building,     label: 'Units',     active: true,  to: '/' },
+  { icon: CalendarDays, label: 'Booking',   active: false, to: '/reservations' },
+  { icon: User,         label: 'Profile',   active: false, to: '#' },
 ]
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function StayDeskPage() {
   const [reservationOpen, setReservationOpen] = useState(false)
-  const [propertyOpen, setPropertyOpen] = useState(false)
+  const [propertyModal, setPropertyModal] = useState<PropertyModal>(null)
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
+  const [displayUnits, setDisplayUnits] = useState<UnitDisplay[]>([])
+  const [rawUnits, setRawUnits] = useState<RentalUnit[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const availableCount = properties.filter(p => p.status === 'Available').length
-  const occupiedCount = properties.filter(p => p.status === 'Occupied').length
+  const fetchData = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const [units, reservations] = await Promise.all([
+        api.rentalUnits.list(),
+        api.reservations.list(),
+      ])
+      setRawUnits(units)
+      setDisplayUnits(units.map(u => toDisplay(u, reservations)))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load units')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { fetchData() }, [fetchData])
+
+  const availableCount = displayUnits.filter(u => u.status === 'Available').length
+  const occupiedCount  = displayUnits.filter(u => u.status === 'Occupied').length
 
   const filterChips: { key: FilterType; label: string }[] = [
-    { key: 'all', label: `ALL UNITS (${properties.length})` },
+    { key: 'all',       label: `ALL UNITS (${displayUnits.length})` },
     { key: 'available', label: `AVAILABLE (${availableCount})` },
-    { key: 'occupied', label: `OCCUPIED (${occupiedCount})` },
+    { key: 'occupied',  label: `OCCUPIED (${occupiedCount})` },
   ]
 
-  const filteredProperties = properties.filter(p => {
-    if (activeFilter === 'available') return p.status === 'Available'
-    if (activeFilter === 'occupied') return p.status === 'Occupied'
+  const filteredUnits = displayUnits.filter(u => {
+    if (activeFilter === 'available') return u.status === 'Available'
+    if (activeFilter === 'occupied')  return u.status === 'Occupied'
     return true
   })
+
+  const editUnit = propertyModal?.mode === 'edit' ? propertyModal.unit : undefined
 
   return (
     <>
@@ -347,7 +431,6 @@ export default function StayDeskPage() {
               </p>
             </div>
 
-            {/* Desktop: two buttons side by side */}
             <div className="hidden md:flex items-center gap-3 shrink-0">
               <button
                 onClick={() => setReservationOpen(true)}
@@ -357,7 +440,7 @@ export default function StayDeskPage() {
                 <span>New Reservation</span>
               </button>
               <button
-                onClick={() => setPropertyOpen(true)}
+                onClick={() => setPropertyModal({ mode: 'add' })}
                 className="bg-primary hover:bg-primary-container text-white px-5 py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors duration-200 shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 whitespace-nowrap text-sm"
               >
                 <Plus size={16} />
@@ -368,14 +451,14 @@ export default function StayDeskPage() {
 
           {/* Mobile: full-width Add Unit CTA */}
           <button
-            onClick={() => setPropertyOpen(true)}
+            onClick={() => setPropertyModal({ mode: 'add' })}
             className="md:hidden w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary-container text-white py-4 rounded-lg font-bold text-base transition-colors duration-200 shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary mb-5"
           >
             <PlusCircle size={20} />
             Add Unit
           </button>
 
-          {/* Filter chips — shown on mobile, hidden on desktop */}
+          {/* Filter chips — mobile only */}
           <div className="md:hidden flex items-center gap-3 mb-5 overflow-x-auto pb-1 scrollbar-hide">
             {filterChips.map(({ key, label }) => {
               const isActive = activeFilter === key
@@ -395,22 +478,52 @@ export default function StayDeskPage() {
             })}
           </div>
 
+          {/* Error state */}
+          {error && (
+            <div className="text-center py-16">
+              <p className="text-on-surface-variant mb-4">{error}</p>
+              <button onClick={fetchData} className="text-primary text-sm font-medium hover:underline cursor-pointer">Try again</button>
+            </div>
+          )}
+
           {/* Mobile: list view */}
-          <div className="md:hidden space-y-2">
-            {filteredProperties.map(property => (
-              <UnitListItem key={property.id} property={property} />
-            ))}
-          </div>
+          {!error && (
+            <div className="md:hidden space-y-2">
+              {loading
+                ? Array.from({ length: 3 }).map((_, i) => <ListSkeleton key={i} />)
+                : filteredUnits.map(u => (
+                  <UnitListItem
+                    key={u._id}
+                    property={u}
+                    onEdit={() => setPropertyModal({ mode: 'edit', unit: u.raw })}
+                  />
+                ))
+              }
+            </div>
+          )}
 
           {/* Desktop: card grid */}
-          <div className="hidden md:grid md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {properties.map((property) => (
-              <PropertyCard key={property.id} property={property} />
-            ))}
-            <div onClick={() => setPropertyOpen(true)}>
-              <NewListingCard />
+          {!error && (
+            <div className="hidden md:grid md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {loading
+                ? Array.from({ length: 3 }).map((_, i) => <CardSkeleton key={i} />)
+                : (
+                  <>
+                    {displayUnits.map(u => (
+                      <PropertyCard
+                        key={u._id}
+                        property={u}
+                        onEdit={() => setPropertyModal({ mode: 'edit', unit: u.raw })}
+                      />
+                    ))}
+                    <div onClick={() => setPropertyModal({ mode: 'add' })} className="cursor-pointer">
+                      <NewListingCard />
+                    </div>
+                  </>
+                )
+              }
             </div>
-          </div>
+          )}
 
         </div>
       </main>
@@ -437,12 +550,10 @@ export default function StayDeskPage() {
 
     </div>
 
-      {/* Overlays rendered outside the animated wrapper so their fixed positioning
-          is relative to the viewport, not the transformed parent element */}
-      <NewReservationModal isOpen={reservationOpen} onClose={() => setReservationOpen(false)} />
-      <NewReservationBottomSheet isOpen={reservationOpen} onClose={() => setReservationOpen(false)} />
-      <AddPropertyModal isOpen={propertyOpen} onClose={() => setPropertyOpen(false)} />
-      <AddPropertyBottomSheet isOpen={propertyOpen} onClose={() => setPropertyOpen(false)} />
+      <NewReservationModal       isOpen={reservationOpen}       onClose={() => setReservationOpen(false)} units={rawUnits} onSuccess={fetchData} />
+      <NewReservationBottomSheet isOpen={reservationOpen}       onClose={() => setReservationOpen(false)} units={rawUnits} onSuccess={fetchData} />
+      <AddPropertyModal          isOpen={propertyModal !== null} onClose={() => setPropertyModal(null)}   onSuccess={fetchData} editUnit={editUnit} />
+      <AddPropertyBottomSheet    isOpen={propertyModal !== null} onClose={() => setPropertyModal(null)}   onSuccess={fetchData} editUnit={editUnit} />
     </>
   )
 }

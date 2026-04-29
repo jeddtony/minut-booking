@@ -41,7 +41,7 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
               $ref: "#/components/schemas/CreateRentalUnitDto"
       responses:
@@ -91,7 +91,7 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
               $ref: "#/components/schemas/UpdateRentalUnitDto"
       responses:
@@ -277,6 +277,22 @@ components:
           type: string
         address:
           type: string
+        city:
+          type: string
+        state:
+          type: string
+        postalCode:
+          type: string
+        pricePerNight:
+          type: number
+        propertyType:
+          type: string
+          enum: [apartment, house, villa, studio, condo, other]
+        description:
+          type: string
+          nullable: true
+        imageUrl:
+          type: string
           nullable: true
         createdAt:
           type: string
@@ -313,11 +329,35 @@ components:
       type: object
       required:
         - name
+        - address
+        - city
+        - state
+        - postalCode
+        - pricePerNight
+        - propertyType
       properties:
         name:
           type: string
         address:
           type: string
+        city:
+          type: string
+        state:
+          type: string
+        postalCode:
+          type: string
+        pricePerNight:
+          type: number
+          example: 150
+        propertyType:
+          type: string
+          enum: [apartment, house, villa, studio, condo, other]
+        description:
+          type: string
+        image:
+          type: string
+          format: binary
+          description: "Image file (max 5 MB)"
 
     UpdateRentalUnitDto:
       type: object
@@ -326,6 +366,23 @@ components:
           type: string
         address:
           type: string
+        city:
+          type: string
+        state:
+          type: string
+        postalCode:
+          type: string
+        pricePerNight:
+          type: number
+        propertyType:
+          type: string
+          enum: [apartment, house, villa, studio, condo, other]
+        description:
+          type: string
+        image:
+          type: string
+          format: binary
+          description: "Replacement image file (max 5 MB)"
 
     CreateReservationDto:
       type: object

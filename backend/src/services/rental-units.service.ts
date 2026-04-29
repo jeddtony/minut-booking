@@ -1,31 +1,48 @@
 import { IRentalUnit, RentalUnitModel } from '@models/rental-unit.model';
 import { CreateRentalUnitDto, UpdateRentalUnitDto } from '@dtos/rental-unit.dto';
 import { HttpException } from '@exceptions/HttpException';
+import { getPresignedUrl } from '@utils/s3';
+
+export type RentalUnitResponse = Omit<IRentalUnit, 'imageKey'> & {
+  imageKey?: string;
+  imageUrl?: string;
+};
 
 export class RentalUnitsService {
-  public async findAll(): Promise<IRentalUnit[]> {
-    return RentalUnitModel.find();
+  private async toResponse(unit: IRentalUnit): Promise<RentalUnitResponse> {
+    const obj = unit.toObject() as RentalUnitResponse;
+    if (obj.imageKey) {
+      obj.imageUrl = await getPresignedUrl(obj.imageKey);
+    }
+    return obj;
   }
 
-  public async findById(id: string): Promise<IRentalUnit> {
+  public async findAll(): Promise<RentalUnitResponse[]> {
+    const units = await RentalUnitModel.find();
+    return Promise.all(units.map(u => this.toResponse(u)));
+  }
+
+  public async findById(id: string): Promise<RentalUnitResponse> {
     const unit = await RentalUnitModel.findById(id);
     if (!unit) throw new HttpException(404, `Rental unit with id ${id} not found`);
-    return unit;
+    return this.toResponse(unit);
   }
 
-  public async create(dto: CreateRentalUnitDto): Promise<IRentalUnit> {
-    return RentalUnitModel.create(dto);
+  public async create(dto: CreateRentalUnitDto, imageKey?: string): Promise<RentalUnitResponse> {
+    const unit = await RentalUnitModel.create({ ...dto, imageKey });
+    return this.toResponse(unit);
   }
 
-  public async update(id: string, dto: UpdateRentalUnitDto): Promise<IRentalUnit> {
-    const unit = await RentalUnitModel.findByIdAndUpdate(id, dto, { new: true, runValidators: true });
+  public async update(id: string, dto: UpdateRentalUnitDto, imageKey?: string): Promise<RentalUnitResponse> {
+    const payload = { ...dto, ...(imageKey ? { imageKey } : {}) };
+    const unit = await RentalUnitModel.findByIdAndUpdate(id, payload, { new: true, runValidators: true });
     if (!unit) throw new HttpException(404, `Rental unit with id ${id} not found`);
-    return unit;
+    return this.toResponse(unit);
   }
 
-  public async delete(id: string): Promise<IRentalUnit> {
+  public async delete(id: string): Promise<RentalUnitResponse> {
     const unit = await RentalUnitModel.findByIdAndDelete(id);
     if (!unit) throw new HttpException(404, `Rental unit with id ${id} not found`);
-    return unit;
+    return this.toResponse(unit);
   }
 }

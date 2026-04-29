@@ -131,6 +131,7 @@ dist
 
 # AI model files
 .claude
+stitch_design
 
 # macOS files
 .DS_Store

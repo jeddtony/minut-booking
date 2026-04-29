@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json.schemastore.org/swcrc",
+  "sourceMaps": true,
+  "jsc": {
+    "parser": {
+      "syntax": "typescript",
+      "tsx": false,
+      "decorators": true,
+      "dynamicImport": true
+    },
+    "transform": {
+      "legacyDecorator": true,
+      "decoratorMetadata": true
+    },
+    "target": "es2017",
+    "keepClassNames": true,
+    "baseUrl": "src",
+    "paths": {
+      "@config": ["config/index.ts"],
+      "@database": ["database/index.ts"],
+      "@controllers/*": ["controllers/*.ts"],
+      "@dtos/*": ["dtos/*.ts"],
+      "@exceptions/*": ["exceptions/*.ts"],
+      "@interfaces/*": ["interfaces/*.ts"],
+      "@middlewares/*": ["middlewares/*.ts"],
+      "@models/*": ["models/*.ts"],
+      "@routes/*": ["routes/*.ts"],
+      "@services/*": ["services/*.ts"],
+      "@utils/*": ["utils/*.ts"]
+    }
+  },
+  "module": {
+    "type": "commonjs"
+  },
+  "minify": false
+}

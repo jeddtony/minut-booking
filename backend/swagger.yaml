@@ -1,0 +1,383 @@
+openapi: "3.0.0"
+info:
+  title: "Booking Management API"
+  version: "1.0.0"
+  description: "REST API for managing rental units and reservations"
+
+servers:
+  - url: http://localhost:3000
+    description: "Development server"
+
+tags:
+  - name: "Rental Units"
+    description: "Operations on rental units"
+  - name: "Reservations"
+    description: "Operations on reservations"
+
+paths:
+  /api/v1/rental-units:
+    get:
+      summary: "List all rental units"
+      tags:
+        - "Rental Units"
+      responses:
+        "200":
+          description: "A list of rental units"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RentalUnit"
+                  message:
+                    type: string
+    post:
+      summary: "Create a rental unit"
+      tags:
+        - "Rental Units"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRentalUnitDto"
+      responses:
+        "201":
+          description: "Rental unit created"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/RentalUnit"
+                  message:
+                    type: string
+        "400":
+          $ref: "#/components/responses/ValidationError"
+
+  /api/v1/rental-units/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: "Get a rental unit by ID"
+      tags:
+        - "Rental Units"
+      responses:
+        "200":
+          description: "Rental unit found"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/RentalUnit"
+                  message:
+                    type: string
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      summary: "Update a rental unit"
+      tags:
+        - "Rental Units"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRentalUnitDto"
+      responses:
+        "200":
+          description: "Rental unit updated"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/RentalUnit"
+                  message:
+                    type: string
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: "Delete a rental unit"
+      tags:
+        - "Rental Units"
+      responses:
+        "200":
+          description: "Rental unit deleted"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/RentalUnit"
+                  message:
+                    type: string
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/reservations:
+    get:
+      summary: "List all reservations"
+      tags:
+        - "Reservations"
+      parameters:
+        - name: rentalUnitId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: "Filter by rental unit ID"
+        - name: startDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+          description: "Filter reservations starting on or after this date"
+        - name: endDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+          description: "Filter reservations ending on or before this date"
+      responses:
+        "200":
+          description: "A list of reservations"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Reservation"
+                  message:
+                    type: string
+    post:
+      summary: "Create a reservation"
+      tags:
+        - "Reservations"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReservationDto"
+      responses:
+        "201":
+          description: "Reservation created"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Reservation"
+                  message:
+                    type: string
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/reservations/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: "Get a reservation by ID"
+      tags:
+        - "Reservations"
+      responses:
+        "200":
+          description: "Reservation found"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Reservation"
+                  message:
+                    type: string
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      summary: "Update a reservation"
+      tags:
+        - "Reservations"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateReservationDto"
+      responses:
+        "200":
+          description: "Reservation updated"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Reservation"
+                  message:
+                    type: string
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: "Delete a reservation"
+      tags:
+        - "Reservations"
+      responses:
+        "200":
+          description: "Reservation deleted"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Reservation"
+                  message:
+                    type: string
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  schemas:
+    RentalUnit:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        address:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Reservation:
+      type: object
+      properties:
+        _id:
+          type: string
+        rentalUnitId:
+          oneOf:
+            - type: string
+            - $ref: "#/components/schemas/RentalUnit"
+        guestName:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateRentalUnitDto:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        address:
+          type: string
+
+    UpdateRentalUnitDto:
+      type: object
+      properties:
+        name:
+          type: string
+        address:
+          type: string
+
+    CreateReservationDto:
+      type: object
+      required:
+        - rentalUnitId
+        - guestName
+        - startDate
+        - endDate
+      properties:
+        rentalUnitId:
+          type: string
+        guestName:
+          type: string
+        startDate:
+          type: string
+          format: date
+          example: "2025-06-01"
+        endDate:
+          type: string
+          format: date
+          example: "2025-06-07"
+
+    UpdateReservationDto:
+      type: object
+      properties:
+        rentalUnitId:
+          type: string
+        guestName:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+
+  responses:
+    NotFound:
+      description: "Resource not found"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ValidationError:
+      description: "Validation error"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"

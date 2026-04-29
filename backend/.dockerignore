@@ -1,0 +1,12 @@
+node_modules
+dist
+logs
+.git
+.gitignore
+*.md
+.env.*.local
+.eslintrc
+.prettierrc
+.huskyrc
+.lintstagedrc.json
+.editorconfig

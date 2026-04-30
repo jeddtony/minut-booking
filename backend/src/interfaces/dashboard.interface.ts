@@ -6,6 +6,11 @@ export interface DashboardSummary {
   checkouts_today: number;
 }
 
+export interface MonthlyDashboardSummary extends DashboardSummary {
+  checkins_this_month: number;
+  checkouts_this_month: number;
+}
+
 export interface BookingEntry {
   id: string;
   guest_name: string;
@@ -32,6 +37,21 @@ export interface GridEntry {
 export interface WeeklyAvailabilityResult {
   summary: DashboardSummary;
   week_range: { start_date: string; end_date: string };
+  properties: PropertyEntry[];
+  grid: GridEntry[];
+}
+
+export interface MonthRange {
+  year: number;
+  month: number;
+  start_date: string;
+  end_date: string;
+  total_days: number;
+}
+
+export interface MonthlyAvailabilityResult {
+  summary: MonthlyDashboardSummary;
+  month_range: MonthRange;
   properties: PropertyEntry[];
   grid: GridEntry[];
 }

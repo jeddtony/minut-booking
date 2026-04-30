@@ -56,6 +56,26 @@ export interface WeeklyAvailabilityResponse {
   grid: DashboardGridRow[]
 }
 
+export interface MonthlyAvailabilitySummary extends DashboardSummary {
+  checkins_this_month: number
+  checkouts_this_month: number
+}
+
+export interface MonthRange {
+  year: number
+  month: number
+  start_date: string
+  end_date: string
+  total_days: number
+}
+
+export interface MonthlyAvailabilityResponse {
+  summary: MonthlyAvailabilitySummary
+  month_range: MonthRange
+  properties: DashboardProperty[]
+  grid: DashboardGridRow[]
+}
+
 export interface User {
   _id: string
   name: string
@@ -145,6 +165,12 @@ export const api = {
       const body = await res.json()
       if (!res.ok) throw new Error(body.message ?? res.statusText)
       return body as WeeklyAvailabilityResponse
+    },
+    monthlyAvailability: async (params: { month: string }) => {
+      const res = await request(`/dashboard/monthly-availability?month=${params.month}`)
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.message ?? res.statusText)
+      return body as MonthlyAvailabilityResponse
     },
   },
   auth: {

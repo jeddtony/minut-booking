@@ -34,4 +34,24 @@ export class DashboardController {
       next(error);
     }
   };
+
+  public getMonthlyAvailability = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { month, property_id } = req.query as Record<string, string | undefined>;
+
+      if (!month) {
+        next(new HttpException(400, 'month is required (e.g. 2024-10)'));
+        return;
+      }
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+        next(new HttpException(400, 'month must be in YYYY-MM format (e.g. 2024-10)'));
+        return;
+      }
+
+      const data = await this.dashboardService.getMonthlyAvailability(month, property_id);
+      res.status(200).json(data);
+    } catch (error) {
+      next(error);
+    }
+  };
 }

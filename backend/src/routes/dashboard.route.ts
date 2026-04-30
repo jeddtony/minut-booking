@@ -14,5 +14,6 @@ export class DashboardRoute implements Routes {
 
   private initializeRoutes(): void {
     this.router.get(`${this.path}/weekly-availability`, AuthMiddleware, this.controller.getWeeklyAvailability);
+    this.router.get(`${this.path}/monthly-availability`, AuthMiddleware, this.controller.getMonthlyAvailability);
   }
 }

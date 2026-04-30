@@ -1,18 +1,28 @@
 import { useState, useEffect } from 'react'
 import { X, User, Building2, CalendarDays, ChevronDown, Loader2 } from 'lucide-react'
 import { useModalTransition } from '../hooks/useModalTransition'
-import { api, RentalUnit } from '../api'
+import { api, RentalUnit, Reservation, getUnitId } from '../api'
 
 interface Props {
   isOpen: boolean
   onClose: () => void
   units: RentalUnit[]
   onSuccess: () => void
+  editReservation?: Reservation
 }
 
 const EMPTY_FORM = { guestName: '', rentalUnitId: '', startDate: '', endDate: '' }
 
-export default function NewReservationBottomSheet({ isOpen, onClose, units, onSuccess }: Props) {
+function formFromReservation(r: Reservation) {
+  return {
+    guestName: r.guestName,
+    rentalUnitId: getUnitId(r.rentalUnitId),
+    startDate: r.startDate.slice(0, 10),
+    endDate: r.endDate.slice(0, 10),
+  }
+}
+
+export default function NewReservationBottomSheet({ isOpen, onClose, units, onSuccess, editReservation }: Props) {
   const { mounted, visible } = useModalTransition(isOpen, 320)
   const [form, setForm] = useState(EMPTY_FORM)
   const [submitting, setSubmitting] = useState(false)
@@ -21,11 +31,15 @@ export default function NewReservationBottomSheet({ isOpen, onClose, units, onSu
   useEffect(() => {
     if (!isOpen) {
       setForm(EMPTY_FORM)
-      setSubmitError(null)
+    } else {
+      setForm(editReservation ? formFromReservation(editReservation) : EMPTY_FORM)
     }
-  }, [isOpen])
+    setSubmitError(null)
+  }, [isOpen, editReservation])
 
   if (!mounted) return null
+
+  const isEdit = Boolean(editReservation)
 
   function set(field: keyof typeof EMPTY_FORM) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -37,16 +51,25 @@ export default function NewReservationBottomSheet({ isOpen, onClose, units, onSu
     setSubmitting(true)
     setSubmitError(null)
     try {
-      await api.reservations.create({
-        rentalUnitId: form.rentalUnitId,
-        guestName: form.guestName,
-        startDate: form.startDate,
-        endDate: form.endDate,
-      })
+      if (isEdit && editReservation) {
+        await api.reservations.update(editReservation._id, {
+          rentalUnitId: form.rentalUnitId,
+          guestName: form.guestName,
+          startDate: form.startDate,
+          endDate: form.endDate,
+        })
+      } else {
+        await api.reservations.create({
+          rentalUnitId: form.rentalUnitId,
+          guestName: form.guestName,
+          startDate: form.startDate,
+          endDate: form.endDate,
+        })
+      }
       onSuccess()
       onClose()
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Failed to create reservation')
+      setSubmitError(err instanceof Error ? err.message : 'Failed to save reservation')
     } finally {
       setSubmitting(false)
     }
@@ -54,19 +77,19 @@ export default function NewReservationBottomSheet({ isOpen, onClose, units, onSu
 
   return (
     <div className="md:hidden fixed inset-0 z-50 flex flex-col justify-end">
-      {/* Backdrop */}
       <div
         className={`absolute inset-0 bg-[#171d1c]/40 backdrop-blur-sm transition-opacity duration-300 ease-out ${visible ? 'opacity-100' : 'opacity-0'}`}
         onClick={onClose}
       />
 
-      {/* Sheet */}
       <form
         onSubmit={handleSubmit}
         className={`relative bg-white rounded-t-[32px] w-full p-8 shadow-2xl transition-transform duration-300 ease-out ${visible ? 'translate-y-0' : 'translate-y-full'}`}
       >
         <div className="flex justify-between items-center mb-8">
-          <h2 className="text-[24px] font-semibold leading-tight tracking-tight text-on-surface">New Reservation</h2>
+          <h2 className="text-[24px] font-semibold leading-tight tracking-tight text-on-surface">
+            {isEdit ? 'Edit Reservation' : 'New Reservation'}
+          </h2>
           <button type="button" onClick={onClose} aria-label="Close" className="p-2 rounded-full hover:bg-surface-container transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary">
             <X size={18} className="text-on-surface-variant" />
           </button>
@@ -147,7 +170,7 @@ export default function NewReservationBottomSheet({ isOpen, onClose, units, onSu
               className="w-full bg-primary text-on-primary py-4 rounded-xl text-[18px] font-semibold shadow-lg shadow-primary/20 hover:bg-primary-container active:scale-[0.98] transition-all duration-200 cursor-pointer focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {submitting && <Loader2 size={18} className="animate-spin" />}
-              {submitting ? 'Saving…' : 'Save Reservation'}
+              {submitting ? 'Saving…' : isEdit ? 'Save Changes' : 'Save Reservation'}
             </button>
             <button type="button" onClick={onClose} className="text-sm text-on-surface-variant hover:text-on-surface transition-colors duration-200 cursor-pointer">
               Cancel

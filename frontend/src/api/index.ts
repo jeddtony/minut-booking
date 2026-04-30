@@ -56,5 +56,12 @@ export const api = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       }),
+    update: (id: string, body: { rentalUnitId?: string; guestName?: string; startDate?: string; endDate?: string }) =>
+      apiFetch<Reservation>(`/reservations/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+    delete: (id: string) => apiFetch<Reservation>(`/reservations/${id}`, { method: 'DELETE' }),
   },
 }

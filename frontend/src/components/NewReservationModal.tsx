@@ -1,18 +1,28 @@
 import { useState, useEffect } from 'react'
 import { X, User, Building2, CalendarDays, ChevronDown, Info, Loader2 } from 'lucide-react'
 import { useModalTransition } from '../hooks/useModalTransition'
-import { api, RentalUnit } from '../api'
+import { api, RentalUnit, Reservation, getUnitId } from '../api'
 
 interface Props {
   isOpen: boolean
   onClose: () => void
   units: RentalUnit[]
   onSuccess: () => void
+  editReservation?: Reservation
 }
 
 const EMPTY_FORM = { guestName: '', rentalUnitId: '', startDate: '', endDate: '' }
 
-export default function NewReservationModal({ isOpen, onClose, units, onSuccess }: Props) {
+function formFromReservation(r: Reservation) {
+  return {
+    guestName: r.guestName,
+    rentalUnitId: getUnitId(r.rentalUnitId),
+    startDate: r.startDate.slice(0, 10),
+    endDate: r.endDate.slice(0, 10),
+  }
+}
+
+export default function NewReservationModal({ isOpen, onClose, units, onSuccess, editReservation }: Props) {
   const { mounted, visible } = useModalTransition(isOpen, 220)
   const [form, setForm] = useState(EMPTY_FORM)
   const [submitting, setSubmitting] = useState(false)
@@ -21,11 +31,15 @@ export default function NewReservationModal({ isOpen, onClose, units, onSuccess 
   useEffect(() => {
     if (!isOpen) {
       setForm(EMPTY_FORM)
-      setSubmitError(null)
+    } else {
+      setForm(editReservation ? formFromReservation(editReservation) : EMPTY_FORM)
     }
-  }, [isOpen])
+    setSubmitError(null)
+  }, [isOpen, editReservation])
 
   if (!mounted) return null
+
+  const isEdit = Boolean(editReservation)
 
   function set(field: keyof typeof EMPTY_FORM) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -37,16 +51,25 @@ export default function NewReservationModal({ isOpen, onClose, units, onSuccess 
     setSubmitting(true)
     setSubmitError(null)
     try {
-      await api.reservations.create({
-        rentalUnitId: form.rentalUnitId,
-        guestName: form.guestName,
-        startDate: form.startDate,
-        endDate: form.endDate,
-      })
+      if (isEdit && editReservation) {
+        await api.reservations.update(editReservation._id, {
+          rentalUnitId: form.rentalUnitId,
+          guestName: form.guestName,
+          startDate: form.startDate,
+          endDate: form.endDate,
+        })
+      } else {
+        await api.reservations.create({
+          rentalUnitId: form.rentalUnitId,
+          guestName: form.guestName,
+          startDate: form.startDate,
+          endDate: form.endDate,
+        })
+      }
       onSuccess()
       onClose()
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Failed to create reservation')
+      setSubmitError(err instanceof Error ? err.message : 'Failed to save reservation')
     } finally {
       setSubmitting(false)
     }
@@ -69,8 +92,12 @@ export default function NewReservationModal({ isOpen, onClose, units, onSuccess 
         {/* Header */}
         <div className="px-6 py-6 flex justify-between items-start border-b border-slate-100">
           <div>
-            <h2 className="text-[24px] font-semibold leading-tight tracking-tight text-slate-900">New Reservation</h2>
-            <p className="text-sm text-slate-500 mt-1 leading-relaxed">Initialize a new guest stay and select available units.</p>
+            <h2 className="text-[24px] font-semibold leading-tight tracking-tight text-slate-900">
+              {isEdit ? 'Edit Reservation' : 'New Reservation'}
+            </h2>
+            <p className="text-sm text-slate-500 mt-1 leading-relaxed">
+              {isEdit ? 'Update the guest or stay details below.' : 'Initialize a new guest stay and select available units.'}
+            </p>
           </div>
           <button
             type="button"
@@ -147,10 +174,12 @@ export default function NewReservationModal({ isOpen, onClose, units, onSuccess 
             </div>
           </div>
 
-          <div className="p-4 bg-teal-50 border border-teal-100 rounded-lg flex gap-3 items-start">
-            <Info size={16} className="text-teal-600 shrink-0 mt-0.5" />
-            <p className="text-xs text-teal-800 leading-relaxed">Selected unit is professionally cleaned and ready for occupancy. Booking confirmation will be sent to the owner immediately.</p>
-          </div>
+          {!isEdit && (
+            <div className="p-4 bg-teal-50 border border-teal-100 rounded-lg flex gap-3 items-start">
+              <Info size={16} className="text-teal-600 shrink-0 mt-0.5" />
+              <p className="text-xs text-teal-800 leading-relaxed">Selected unit is professionally cleaned and ready for occupancy. Booking confirmation will be sent to the owner immediately.</p>
+            </div>
+          )}
 
           {submitError && (
             <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">{submitError}</p>
@@ -165,7 +194,7 @@ export default function NewReservationModal({ isOpen, onClose, units, onSuccess 
             className="bg-primary hover:bg-primary-container text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-colors duration-200 shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {submitting && <Loader2 size={14} className="animate-spin" />}
-            {submitting ? 'Saving…' : 'Save Reservation'}
+            {submitting ? 'Saving…' : isEdit ? 'Save Changes' : 'Save Reservation'}
           </button>
           <button type="button" onClick={onClose} className="text-slate-600 hover:text-slate-900 border border-transparent hover:border-slate-300 px-6 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer active:scale-95">
             Cancel

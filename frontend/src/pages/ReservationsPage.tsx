@@ -19,12 +19,15 @@ import {
   LayoutGrid,
   User,
   ListFilter,
+  Pencil,
+  Trash2,
 } from 'lucide-react'
 import NewReservationModal from '../components/NewReservationModal'
 import NewReservationBottomSheet from '../components/NewReservationBottomSheet'
 import { api, RentalUnit, Reservation, getUnitId, getUnitName } from '../api'
 
 type ReservationStatus = 'Active' | 'Confirmed' | 'Completed'
+type ReservationModal = { mode: 'new' } | { mode: 'edit'; reservation: Reservation } | null
 
 interface ReservationItem {
   _id: string
@@ -35,6 +38,7 @@ interface ReservationItem {
   checkIn: string
   checkOut: string
   status: ReservationStatus
+  raw: Reservation
 }
 
 const statusStyles: Record<ReservationStatus, string> = {
@@ -82,6 +86,7 @@ function toItem(r: Reservation): ReservationItem {
     checkIn: formatDate(r.startDate),
     checkOut: formatDate(r.endDate),
     status: deriveStatus(r.startDate, r.endDate),
+    raw: r,
   }
 }
 
@@ -107,23 +112,91 @@ function StatusBadge({ status }: { status: ReservationStatus }) {
   )
 }
 
-// ─── Mobile card ──────────────────────────────────────────────────────────────
-function ReservationCard({ r }: { r: ReservationItem }) {
+// ─── Action menu (shared between card and table row) ─────────────────────────
+function ReservationMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  function close() { setOpen(false); setConfirmDelete(false) }
+
   return (
-    <div className="bg-white border border-outline-variant rounded-xl p-5 shadow-card flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-primary/40 transition-all duration-200 cursor-pointer">
-      <div className="flex items-center gap-4">
-        <div className={`w-12 h-12 rounded-full flex items-center justify-center font-semibold text-sm border-2 border-surface-container shrink-0 ${r.avatarCls}`}>
-          {r.initials}
-        </div>
-        <div>
-          <h3 className="text-[18px] font-semibold leading-snug text-on-surface">{r.guest}</h3>
-          <div className="flex items-center gap-1.5 text-on-surface-variant text-sm mt-0.5">
-            <Building size={14} className="shrink-0" />
-            <span>{r.unit}</span>
+    <div className="relative">
+      <button
+        aria-label="More options"
+        onClick={(e) => { e.stopPropagation(); setOpen(v => !v); setConfirmDelete(false) }}
+        className="text-on-surface-variant hover:text-primary transition-colors duration-200 cursor-pointer p-1 rounded focus:outline-none focus:ring-2 focus:ring-primary"
+      >
+        <MoreHorizontal size={18} />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-[1]" onClick={close} />
+          <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-slate-200 z-[2] min-w-[160px] py-1">
+            {!confirmDelete ? (
+              <>
+                <button
+                  onClick={() => { onEdit(); close() }}
+                  className="w-full text-left px-4 py-2 text-sm text-on-surface hover:bg-surface-container transition-colors duration-150 cursor-pointer flex items-center gap-2"
+                >
+                  <Pencil size={13} className="text-on-surface-variant" />
+                  Edit
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors duration-150 cursor-pointer flex items-center gap-2"
+                >
+                  <Trash2 size={13} />
+                  Delete
+                </button>
+              </>
+            ) : (
+              <div className="px-4 py-3">
+                <p className="text-xs font-medium text-on-surface mb-0.5">Delete reservation?</p>
+                <p className="text-xs text-on-surface-variant mb-3">This cannot be undone.</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { onDelete(); close() }}
+                    className="flex-1 py-1.5 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white rounded transition-colors duration-150 cursor-pointer"
+                  >
+                    Delete
+                  </button>
+                  <button
+                    onClick={() => setConfirmDelete(false)}
+                    className="flex-1 py-1.5 text-xs font-semibold border border-outline-variant text-on-surface rounded hover:bg-surface-container transition-colors duration-150 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── Mobile card ──────────────────────────────────────────────────────────────
+function ReservationCard({ r, onEdit, onDelete }: { r: ReservationItem; onEdit: () => void; onDelete: () => void }) {
+  return (
+    <div className="bg-white border border-outline-variant rounded-xl p-5 shadow-card hover:border-primary/40 transition-all duration-200">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-4 min-w-0">
+          <div className={`w-12 h-12 rounded-full flex items-center justify-center font-semibold text-sm border-2 border-surface-container shrink-0 ${r.avatarCls}`}>
+            {r.initials}
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-[18px] font-semibold leading-snug text-on-surface truncate">{r.guest}</h3>
+            <div className="flex items-center gap-1.5 text-on-surface-variant text-sm mt-0.5">
+              <Building size={14} className="shrink-0" />
+              <span className="truncate">{r.unit}</span>
+            </div>
           </div>
         </div>
+        <ReservationMenu onEdit={onEdit} onDelete={onDelete} />
       </div>
-      <div className="flex flex-col sm:items-end gap-1.5 shrink-0">
+      <div className="flex items-center justify-between mt-4 pt-4 border-t border-outline-variant/50">
         <span className="text-sm font-medium text-on-surface">{r.checkIn} — {r.checkOut}</span>
         <StatusBadge status={r.status} />
       </div>
@@ -132,7 +205,7 @@ function ReservationCard({ r }: { r: ReservationItem }) {
 }
 
 // ─── Desktop table row ────────────────────────────────────────────────────────
-function ReservationTableRow({ r, alt }: { r: ReservationItem; alt: boolean }) {
+function ReservationTableRow({ r, alt, onEdit, onDelete }: { r: ReservationItem; alt: boolean; onEdit: () => void; onDelete: () => void }) {
   return (
     <tr className={`${alt ? 'bg-surface-container-lowest' : ''} hover:bg-surface-container-lowest transition-colors duration-150`}>
       <td className="px-6 py-4">
@@ -148,12 +221,7 @@ function ReservationTableRow({ r, alt }: { r: ReservationItem; alt: boolean }) {
       <td className="px-6 py-4 text-sm text-on-surface">{r.checkOut}</td>
       <td className="px-6 py-4"><StatusBadge status={r.status} /></td>
       <td className="px-6 py-4 text-right">
-        <button
-          aria-label="More options"
-          className="text-on-surface-variant hover:text-primary transition-colors duration-200 cursor-pointer p-1 rounded focus:outline-none focus:ring-2 focus:ring-primary"
-        >
-          <MoreHorizontal size={18} />
-        </button>
+        <ReservationMenu onEdit={onEdit} onDelete={onDelete} />
       </td>
     </tr>
   )
@@ -174,7 +242,7 @@ function CardSkeleton() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function ReservationsPage() {
-  const [reservationOpen, setReservationOpen] = useState(false)
+  const [reservationModal, setReservationModal] = useState<ReservationModal>(null)
   const [items, setItems] = useState<ReservationItem[]>([])
   const [rawUnits, setRawUnits] = useState<RentalUnit[]>([])
   const [loading, setLoading] = useState(true)
@@ -204,6 +272,17 @@ export default function ReservationsPage() {
   }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  async function deleteReservation(id: string) {
+    try {
+      await api.reservations.delete(id)
+      fetchData()
+    } catch {
+      // TODO: surface error toast
+    }
+  }
+
+  const editReservation = reservationModal?.mode === 'edit' ? reservationModal.reservation : undefined
 
   return (
     <>
@@ -290,7 +369,7 @@ export default function ReservationsPage() {
                   <ChevronDown size={15} className="text-on-surface-variant" />
                 </button>
                 <button
-                  onClick={() => setReservationOpen(true)}
+                  onClick={() => setReservationModal({ mode: 'new' })}
                   className="flex items-center gap-2 bg-primary hover:bg-primary-container text-on-primary px-4 py-2.5 rounded-lg text-sm font-semibold shadow-sm transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
                 >
                   <Plus size={16} />
@@ -310,7 +389,7 @@ export default function ReservationsPage() {
             {/* 12-col grid */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-              {/* Left column: cards (mobile) + table (desktop) */}
+              {/* Left: cards (mobile) + table (desktop) */}
               <div className="lg:col-span-8">
 
                 {/* Mobile card list */}
@@ -319,7 +398,14 @@ export default function ReservationsPage() {
                     ? Array.from({ length: 3 }).map((_, i) => <CardSkeleton key={i} />)
                     : items.length === 0
                       ? <p className="text-center py-12 text-on-surface-variant text-sm">No reservations yet.</p>
-                      : items.map(r => <ReservationCard key={r._id} r={r} />)
+                      : items.map(r => (
+                        <ReservationCard
+                          key={r._id}
+                          r={r}
+                          onEdit={() => setReservationModal({ mode: 'edit', reservation: r.raw })}
+                          onDelete={() => deleteReservation(r._id)}
+                        />
+                      ))
                   }
                 </div>
 
@@ -358,7 +444,15 @@ export default function ReservationsPage() {
                                 </td>
                               </tr>
                             )
-                            : items.map((r, i) => <ReservationTableRow key={r._id} r={r} alt={i % 2 === 1} />)
+                            : items.map((r, i) => (
+                              <ReservationTableRow
+                                key={r._id}
+                                r={r}
+                                alt={i % 2 === 1}
+                                onEdit={() => setReservationModal({ mode: 'edit', reservation: r.raw })}
+                                onDelete={() => deleteReservation(r._id)}
+                              />
+                            ))
                         }
                       </tbody>
                     </table>
@@ -385,10 +479,9 @@ export default function ReservationsPage() {
 
               </div>
 
-              {/* Right column: stats sidebar */}
+              {/* Right: stats sidebar */}
               <div className="lg:col-span-4 space-y-4">
 
-                {/* Monthly Capacity */}
                 <div className="bg-primary text-on-primary p-6 rounded-xl shadow-lg flex flex-col justify-between h-48">
                   <div>
                     <TrendingUp size={20} className="mb-3 opacity-90" />
@@ -400,13 +493,12 @@ export default function ReservationsPage() {
                   </div>
                 </div>
 
-                {/* Quick Summary */}
                 <div className="bg-white border border-outline-variant p-6 rounded-xl shadow-card">
                   <h3 className="text-[18px] font-semibold text-on-surface mb-5">Quick Summary</h3>
                   <div className="space-y-4">
                     {[
-                      { label: 'Arriving Today',   value: arrivingToday },
-                      { label: 'Departing Today',  value: departingToday },
+                      { label: 'Arriving Today',    value: arrivingToday },
+                      { label: 'Departing Today',   value: departingToday },
                       { label: 'Total Reservations', value: items.length },
                     ].map(({ label, value }) => (
                       <div key={label} className="flex justify-between items-center">
@@ -449,15 +541,27 @@ export default function ReservationsPage() {
 
       {/* FAB — mobile only */}
       <button
-        onClick={() => setReservationOpen(true)}
+        onClick={() => setReservationModal({ mode: 'new' })}
         aria-label="New reservation"
         className="fixed bottom-20 right-6 md:hidden w-14 h-14 bg-primary hover:bg-primary-container text-white rounded-full shadow-lg flex items-center justify-center active:scale-95 transition-all duration-200 z-40 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
       >
         <Plus size={24} />
       </button>
 
-      <NewReservationModal       isOpen={reservationOpen} onClose={() => setReservationOpen(false)} units={rawUnits} onSuccess={fetchData} />
-      <NewReservationBottomSheet isOpen={reservationOpen} onClose={() => setReservationOpen(false)} units={rawUnits} onSuccess={fetchData} />
+      <NewReservationModal
+        isOpen={reservationModal !== null}
+        onClose={() => setReservationModal(null)}
+        units={rawUnits}
+        onSuccess={fetchData}
+        editReservation={editReservation}
+      />
+      <NewReservationBottomSheet
+        isOpen={reservationModal !== null}
+        onClose={() => setReservationModal(null)}
+        units={rawUnits}
+        onSuccess={fetchData}
+        editReservation={editReservation}
+      />
     </>
   )
 }

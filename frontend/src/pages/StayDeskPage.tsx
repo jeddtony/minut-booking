@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
   Building2,
@@ -18,7 +18,9 @@ import {
   CalendarDays,
   User,
   Pencil,
+  LogOut,
 } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
 import NewReservationModal from '../components/NewReservationModal'
 import NewReservationBottomSheet from '../components/NewReservationBottomSheet'
 import AddPropertyModal from '../components/AddPropertyModal'
@@ -309,6 +311,14 @@ const bottomNavItems = [
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function StayDeskPage() {
+  const { logout } = useAuth()
+  const navigate = useNavigate()
+
+  async function handleLogout() {
+    await logout()
+    navigate('/login', { replace: true })
+  }
+
   const [reservationOpen, setReservationOpen] = useState(false)
   const [propertyModal, setPropertyModal] = useState<PropertyModal>(null)
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
@@ -321,9 +331,9 @@ export default function StayDeskPage() {
     setLoading(true)
     setError(null)
     try {
-      const [units, reservations] = await Promise.all([
-        api.rentalUnits.list(),
-        api.reservations.list(),
+      const [{ data: units }, { data: reservations }] = await Promise.all([
+        api.rentalUnits.list({ limit: 100 }),
+        api.reservations.list({ limit: 500 }),
       ])
       setRawUnits(units)
       setDisplayUnits(units.map(u => toDisplay(u, reservations)))
@@ -396,6 +406,13 @@ export default function StayDeskPage() {
             <Settings size={18} />
             <span className="text-sm">Settings</span>
           </a>
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500/50"
+          >
+            <LogOut size={18} />
+            <span className="text-sm">Sign out</span>
+          </button>
         </div>
       </aside>
 

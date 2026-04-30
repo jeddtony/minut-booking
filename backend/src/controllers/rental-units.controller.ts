@@ -8,8 +8,10 @@ export class RentalUnitsController {
 
   public getAll = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const data = await this.rentalUnitsService.findAll();
-      res.status(200).json({ data, message: 'findAll' });
+      const page = Math.max(1, parseInt(req.query.page as string) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 10));
+      const { data, meta } = await this.rentalUnitsService.findAll(page, limit);
+      res.status(200).json({ data, meta, message: 'findAll' });
     } catch (error) {
       next(error);
     }

@@ -3,6 +3,7 @@ import { IReservation, ReservationModel } from '@models/reservation.model';
 import { RentalUnitModel } from '@models/rental-unit.model';
 import { CreateReservationDto, UpdateReservationDto } from '@dtos/reservation.dto';
 import { HttpException } from '@exceptions/HttpException';
+import { PaginatedResult } from '@interfaces/pagination.interface';
 
 type ReservationUpdatePayload = {
   rentalUnitId?: string;
@@ -12,7 +13,13 @@ type ReservationUpdatePayload = {
 };
 
 export class ReservationsService {
-  public async findAll(rentalUnitId?: string, startDate?: string, endDate?: string): Promise<IReservation[]> {
+  public async findAll(
+    rentalUnitId?: string,
+    startDate?: string,
+    endDate?: string,
+    page = 1,
+    limit = 10,
+  ): Promise<PaginatedResult<IReservation>> {
     const query: FilterQuery<IReservation> = {};
 
     if (rentalUnitId) {
@@ -20,14 +27,26 @@ export class ReservationsService {
       query.rentalUnitId = rentalUnitId;
     }
 
-    if (startDate || endDate) {
-      const dateConditions: FilterQuery<IReservation>[] = [];
-      if (startDate) dateConditions.push({ startDate: { $gte: new Date(startDate) } });
-      if (endDate) dateConditions.push({ endDate: { $lte: new Date(endDate) } });
-      query.$and = dateConditions;
+    // Overlap condition: reservation overlaps [startDate, endDate] when
+    //   reservation.startDate < queryEndDate  AND  reservation.endDate > queryStartDate
+    if (startDate && endDate) {
+      query.$and = [{ startDate: { $lt: new Date(endDate) } }, { endDate: { $gt: new Date(startDate) } }];
+    } else if (startDate) {
+      query.endDate = { $gt: new Date(startDate) };
+    } else if (endDate) {
+      query.startDate = { $lt: new Date(endDate) };
     }
 
-    return ReservationModel.find(query).populate('rentalUnitId');
+    const skip = (page - 1) * limit;
+    const [data, total] = await Promise.all([
+      ReservationModel.find(query).populate('rentalUnitId').skip(skip).limit(limit),
+      ReservationModel.countDocuments(query),
+    ]);
+
+    return {
+      data,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   public async findById(id: string): Promise<IReservation> {

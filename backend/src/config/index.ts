@@ -15,3 +15,6 @@ export const CREDENTIALS: boolean = process.env.CREDENTIALS === 'true';
 
 export const AWS_REGION: string = process.env.AWS_REGION ?? 'us-east-1';
 export const AWS_S3_BUCKET: string = process.env.AWS_S3_BUCKET ?? '';
+
+export const JWT_SECRET: string = process.env.JWT_SECRET ?? 'changeme_access_secret';
+export const JWT_REFRESH_SECRET: string = process.env.JWT_REFRESH_SECRET ?? 'changeme_refresh_secret';

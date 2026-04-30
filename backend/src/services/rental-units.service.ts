@@ -1,6 +1,7 @@
 import { IRentalUnit, RentalUnitModel } from '@models/rental-unit.model';
 import { CreateRentalUnitDto, UpdateRentalUnitDto } from '@dtos/rental-unit.dto';
 import { HttpException } from '@exceptions/HttpException';
+import { PaginatedResult } from '@interfaces/pagination.interface';
 import { getPresignedUrl } from '@utils/s3';
 
 export type RentalUnitResponse = Omit<IRentalUnit, 'imageKey'> & {
@@ -17,9 +18,17 @@ export class RentalUnitsService {
     return obj;
   }
 
-  public async findAll(): Promise<RentalUnitResponse[]> {
-    const units = await RentalUnitModel.find();
-    return Promise.all(units.map(u => this.toResponse(u)));
+  public async findAll(page = 1, limit = 10): Promise<PaginatedResult<RentalUnitResponse>> {
+    const skip = (page - 1) * limit;
+    const [units, total] = await Promise.all([
+      RentalUnitModel.find().skip(skip).limit(limit),
+      RentalUnitModel.countDocuments(),
+    ]);
+    const data = await Promise.all(units.map(u => this.toResponse(u)));
+    return {
+      data,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   public async findById(id: string): Promise<RentalUnitResponse> {

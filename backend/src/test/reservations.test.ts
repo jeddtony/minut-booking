@@ -16,19 +16,68 @@ describe('ReservationsService', () => {
     jest.clearAllMocks();
   });
 
+  const mockQueryChain = (resolvedData: unknown[]) => {
+    const limitMock = jest.fn().mockResolvedValue(resolvedData);
+    const skipMock = jest.fn().mockReturnValue({ limit: limitMock });
+    const populateMock = jest.fn().mockReturnValue({ skip: skipMock });
+    (ReservationModel.find as jest.Mock).mockReturnValue({ populate: populateMock });
+    (ReservationModel.countDocuments as jest.Mock).mockResolvedValue(resolvedData.length);
+    return { limitMock, skipMock };
+  };
+
   describe('findAll', () => {
-    it('should return all reservations without filters', async () => {
+    it('should return paginated reservations with meta', async () => {
       const mockReservations = [{ _id: VALID_RESERVATION_ID, guestName: 'Alice' }];
-      const populateMock = jest.fn().mockResolvedValue(mockReservations);
-      (ReservationModel.find as jest.Mock).mockReturnValue({ populate: populateMock });
+      mockQueryChain(mockReservations);
 
       const result = await service.findAll();
 
-      expect(result).toEqual(mockReservations);
+      expect(result.data).toEqual(mockReservations);
+      expect(result.meta).toEqual({ total: 1, page: 1, limit: 10, totalPages: 1 });
       expect(ReservationModel.find).toHaveBeenCalledWith({});
     });
 
-    it('should throw 400 for an invalid rentalUnitId filter', async () => {
+    it('should filter by rentalUnitId', async () => {
+      mockQueryChain([]);
+
+      await service.findAll(VALID_UNIT_ID);
+
+      expect(ReservationModel.find).toHaveBeenCalledWith(expect.objectContaining({ rentalUnitId: VALID_UNIT_ID }));
+    });
+
+    it('should use overlap logic when both startDate and endDate are provided', async () => {
+      mockQueryChain([]);
+
+      await service.findAll(undefined, '2025-07-01', '2025-07-31');
+
+      expect(ReservationModel.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          $and: [{ startDate: { $lt: new Date('2025-07-31') } }, { endDate: { $gt: new Date('2025-07-01') } }],
+        }),
+      );
+    });
+
+    it('should filter by startDate only using endDate > startDate', async () => {
+      mockQueryChain([]);
+
+      await service.findAll(undefined, '2025-07-01');
+
+      expect(ReservationModel.find).toHaveBeenCalledWith(
+        expect.objectContaining({ endDate: { $gt: new Date('2025-07-01') } }),
+      );
+    });
+
+    it('should filter by endDate only using startDate < endDate', async () => {
+      mockQueryChain([]);
+
+      await service.findAll(undefined, undefined, '2025-07-31');
+
+      expect(ReservationModel.find).toHaveBeenCalledWith(
+        expect.objectContaining({ startDate: { $lt: new Date('2025-07-31') } }),
+      );
+    });
+
+    it('should throw 400 for an invalid rentalUnitId', async () => {
       await expect(service.findAll('not-a-valid-id')).rejects.toMatchObject({ status: 400 });
     });
   });

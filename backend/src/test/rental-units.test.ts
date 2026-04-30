@@ -18,14 +18,29 @@ describe('RentalUnitsService', () => {
   });
 
   describe('findAll', () => {
-    it('should return all rental units', async () => {
-      const mockUnits = [makeMock({ _id: '1', name: 'Unit A' })];
-      (RentalUnitModel.find as jest.Mock).mockResolvedValue(mockUnits);
+    it('should return paginated rental units with meta', async () => {
+      const mockUnit = makeMock({ _id: '1', name: 'Unit A' });
+      const limitMock = jest.fn().mockResolvedValue([mockUnit]);
+      const skipMock = jest.fn().mockReturnValue({ limit: limitMock });
+      (RentalUnitModel.find as jest.Mock).mockReturnValue({ skip: skipMock });
+      (RentalUnitModel.countDocuments as jest.Mock).mockResolvedValue(1);
 
-      const result = await service.findAll();
+      const result = await service.findAll(1, 10);
 
-      expect(result[0]).toMatchObject({ _id: '1', name: 'Unit A' });
-      expect(RentalUnitModel.find).toHaveBeenCalledTimes(1);
+      expect(result.data[0]).toMatchObject({ _id: '1', name: 'Unit A' });
+      expect(result.meta).toEqual({ total: 1, page: 1, limit: 10, totalPages: 1 });
+    });
+
+    it('should calculate totalPages correctly', async () => {
+      const limitMock = jest.fn().mockResolvedValue([]);
+      const skipMock = jest.fn().mockReturnValue({ limit: limitMock });
+      (RentalUnitModel.find as jest.Mock).mockReturnValue({ skip: skipMock });
+      (RentalUnitModel.countDocuments as jest.Mock).mockResolvedValue(25);
+
+      const result = await service.findAll(2, 10);
+
+      expect(result.meta).toEqual({ total: 25, page: 2, limit: 10, totalPages: 3 });
+      expect(skipMock).toHaveBeenCalledWith(10); // (2-1) * 10
     });
   });
 

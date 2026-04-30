@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
   Building2,
@@ -18,13 +18,14 @@ import {
   Plus,
   LayoutGrid,
   User,
-  ListFilter,
   Pencil,
   Trash2,
+  LogOut,
 } from 'lucide-react'
 import NewReservationModal from '../components/NewReservationModal'
 import NewReservationBottomSheet from '../components/NewReservationBottomSheet'
-import { api, RentalUnit, Reservation, getUnitId, getUnitName } from '../api'
+import { api, RentalUnit, Reservation, PaginationMeta, getUnitId, getUnitName } from '../api'
+import { useAuth } from '../context/AuthContext'
 
 type ReservationStatus = 'Active' | 'Confirmed' | 'Completed'
 type ReservationModal = { mode: 'new' } | { mode: 'edit'; reservation: Reservation } | null
@@ -242,6 +243,14 @@ function CardSkeleton() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function ReservationsPage() {
+  const { logout } = useAuth()
+  const navigate = useNavigate()
+
+  async function handleLogout() {
+    await logout()
+    navigate('/login', { replace: true })
+  }
+
   const [reservationModal, setReservationModal] = useState<ReservationModal>(null)
   const [items, setItems] = useState<ReservationItem[]>([])
   const [rawUnits, setRawUnits] = useState<RentalUnit[]>([])
@@ -249,16 +258,39 @@ export default function ReservationsPage() {
   const [capacity, setCapacity] = useState(0)
   const [arrivingToday, setArrivingToday] = useState(0)
   const [departingToday, setDepartingToday] = useState(0)
+  const [page, setPage] = useState(1)
+  const [meta, setMeta] = useState<PaginationMeta | null>(null)
+  const [filterUnit, setFilterUnit] = useState('')
+  const [filterStart, setFilterStart] = useState('')
+  const [filterEnd, setFilterEnd] = useState('')
 
-  const fetchData = useCallback(async () => {
+  const PAGE_LIMIT = 10
+
+  const now = new Date()
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
+  const thisMonthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10)
+
+  const fetchData = useCallback(async (
+    p: number,
+    rentalUnitId: string,
+    startDate: string,
+    endDate: string,
+  ) => {
     setLoading(true)
     try {
-      const [units, reservations] = await Promise.all([
-        api.rentalUnits.list(),
-        api.reservations.list(),
+      const [{ data: units }, { data: reservations, meta }] = await Promise.all([
+        api.rentalUnits.list({ limit: 100 }),
+        api.reservations.list({
+          page: p,
+          limit: PAGE_LIMIT,
+          ...(rentalUnitId ? { rentalUnitId } : {}),
+          ...(startDate    ? { startDate }    : {}),
+          ...(endDate      ? { endDate }      : {}),
+        }),
       ])
       setRawUnits(units)
       setItems(reservations.map(toItem))
+      setMeta(meta)
       setCapacity(monthlyCapacity(reservations, units.length))
 
       const todayStr = new Date().toDateString()
@@ -271,12 +303,38 @@ export default function ReservationsPage() {
     }
   }, [])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => {
+    fetchData(page, filterUnit, filterStart, filterEnd)
+  }, [page, filterUnit, filterStart, filterEnd, fetchData])
+
+  function goToPage(p: number) {
+    if (meta && (p < 1 || p > meta.totalPages)) return
+    setPage(p)
+  }
+
+  function applyUnitFilter(id: string) {
+    setFilterUnit(id)
+    setPage(1)
+  }
+
+  function applyThisMonth() {
+    setFilterStart(thisMonthStart)
+    setFilterEnd(thisMonthEnd)
+    setPage(1)
+  }
+
+  function applyDateFilter(field: 'start' | 'end', value: string) {
+    if (field === 'start') setFilterStart(value)
+    else setFilterEnd(value)
+    setPage(1)
+  }
 
   async function deleteReservation(id: string) {
     try {
       await api.reservations.delete(id)
-      fetchData()
+      const newPage = items.length === 1 && page > 1 ? page - 1 : page
+      setPage(newPage)
+      if (newPage === page) fetchData(page, filterUnit, filterStart, filterEnd)
     } catch {
       // TODO: surface error toast
     }
@@ -324,6 +382,13 @@ export default function ReservationsPage() {
               <Settings size={18} />
               <span className="text-sm">Settings</span>
             </a>
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500/50"
+            >
+              <LogOut size={18} />
+              <span className="text-sm">Sign out</span>
+            </button>
           </div>
         </aside>
 
@@ -358,16 +423,48 @@ export default function ReservationsPage() {
 
               {/* Desktop controls */}
               <div className="hidden md:flex flex-wrap items-center gap-3 shrink-0">
-                <button className="flex items-center gap-2 bg-white border border-outline-variant rounded-lg px-4 py-2.5 shadow-sm hover:bg-surface-container-low transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary">
-                  <CalendarDays size={15} className="text-on-surface-variant" />
-                  <span className="text-sm font-medium text-on-surface">This Month</span>
-                  <ChevronDown size={15} className="text-on-surface-variant" />
+                {/* Date range */}
+                <div className="flex items-center gap-1.5 bg-white border border-outline-variant rounded-lg px-3 py-2 shadow-sm">
+                  <CalendarDays size={15} className="text-on-surface-variant shrink-0" />
+                  <input
+                    type="date"
+                    aria-label="From date"
+                    value={filterStart}
+                    onChange={e => applyDateFilter('start', e.target.value)}
+                    className="text-sm text-on-surface bg-transparent focus:outline-none cursor-pointer"
+                  />
+                  <span className="text-on-surface-variant text-xs px-1">→</span>
+                  <input
+                    type="date"
+                    aria-label="To date"
+                    value={filterEnd}
+                    onChange={e => applyDateFilter('end', e.target.value)}
+                    className="text-sm text-on-surface bg-transparent focus:outline-none cursor-pointer"
+                  />
+                </div>
+                <button
+                  onClick={applyThisMonth}
+                  className="text-xs font-semibold text-primary hover:text-primary-container border border-primary/30 hover:border-primary/60 bg-primary/5 hover:bg-primary/10 rounded-lg px-3 py-2.5 transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary whitespace-nowrap"
+                >
+                  This Month
                 </button>
-                <button className="flex items-center gap-2 bg-white border border-outline-variant rounded-lg px-4 py-2.5 shadow-sm hover:bg-surface-container-low transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary">
-                  <Building size={15} className="text-on-surface-variant" />
-                  <span className="text-sm font-medium text-on-surface">All Units</span>
-                  <ChevronDown size={15} className="text-on-surface-variant" />
-                </button>
+
+                {/* Unit filter */}
+                <div className="relative">
+                  <Building size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
+                  <select
+                    value={filterUnit}
+                    onChange={e => applyUnitFilter(e.target.value)}
+                    className="appearance-none pl-8 pr-8 py-2.5 bg-white border border-outline-variant rounded-lg text-sm font-medium text-on-surface shadow-sm hover:bg-surface-container-low transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="">All Units</option>
+                    {rawUnits.map(u => (
+                      <option key={u._id} value={u._id}>{u.name}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
+                </div>
+
                 <button
                   onClick={() => setReservationModal({ mode: 'new' })}
                   className="flex items-center gap-2 bg-primary hover:bg-primary-container text-on-primary px-4 py-2.5 rounded-lg text-sm font-semibold shadow-sm transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
@@ -377,12 +474,51 @@ export default function ReservationsPage() {
                 </button>
               </div>
 
-              {/* Mobile: filter button */}
-              <div className="flex md:hidden">
-                <button className="flex items-center gap-2 px-3 py-2 bg-white border border-outline-variant rounded-lg text-sm font-medium text-on-surface hover:bg-surface-container transition-colors duration-200 cursor-pointer shadow-sm">
-                  <ListFilter size={15} className="text-on-surface-variant" />
-                  Filter
-                </button>
+              {/* Mobile: filter row */}
+              <div className="flex md:hidden flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 flex-1 bg-white border border-outline-variant rounded-lg px-2.5 py-2">
+                    <CalendarDays size={14} className="text-on-surface-variant shrink-0" />
+                    <input
+                      type="date"
+                      aria-label="From date"
+                      value={filterStart}
+                      onChange={e => applyDateFilter('start', e.target.value)}
+                      className="text-xs text-on-surface bg-transparent focus:outline-none cursor-pointer w-full"
+                    />
+                  </div>
+                  <span className="text-on-surface-variant text-xs">→</span>
+                  <div className="flex items-center gap-1.5 flex-1 bg-white border border-outline-variant rounded-lg px-2.5 py-2">
+                    <CalendarDays size={14} className="text-on-surface-variant shrink-0" />
+                    <input
+                      type="date"
+                      aria-label="To date"
+                      value={filterEnd}
+                      onChange={e => applyDateFilter('end', e.target.value)}
+                      className="text-xs text-on-surface bg-transparent focus:outline-none cursor-pointer w-full"
+                    />
+                  </div>
+                  <button
+                    onClick={applyThisMonth}
+                    className="text-xs font-semibold text-primary border border-primary/30 bg-primary/5 rounded-lg px-2.5 py-2 cursor-pointer focus:outline-none whitespace-nowrap"
+                  >
+                    This Month
+                  </button>
+                </div>
+                <div className="relative">
+                  <Building size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
+                  <select
+                    value={filterUnit}
+                    onChange={e => applyUnitFilter(e.target.value)}
+                    className="appearance-none w-full pl-7 pr-6 py-2 bg-white border border-outline-variant rounded-lg text-sm font-medium text-on-surface cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="">All Units</option>
+                    {rawUnits.map(u => (
+                      <option key={u._id} value={u._id}>{u.name}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
+                </div>
               </div>
             </div>
 
@@ -459,22 +595,57 @@ export default function ReservationsPage() {
                   </div>
 
                   {/* Pagination */}
-                  <div className="px-6 py-4 border-t border-outline-variant flex items-center justify-between bg-surface-container-lowest">
-                    <p className="text-xs text-on-surface-variant">
-                      Showing {items.length} reservation{items.length !== 1 ? 's' : ''}
-                    </p>
-                    <div className="flex items-center gap-1.5">
-                      <button className="w-8 h-8 flex items-center justify-center rounded border border-outline-variant text-on-surface-variant hover:bg-surface-container transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary">
-                        <ChevronLeft size={15} />
-                      </button>
-                      <button className="w-8 h-8 flex items-center justify-center rounded border border-outline-variant bg-primary text-on-primary text-sm font-medium cursor-pointer">
-                        1
-                      </button>
-                      <button className="w-8 h-8 flex items-center justify-center rounded border border-outline-variant text-on-surface-variant hover:bg-surface-container transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary">
-                        <ChevronRight size={15} />
-                      </button>
+                  {meta && (
+                    <div className="px-6 py-4 border-t border-outline-variant flex items-center justify-between bg-surface-container-lowest">
+                      <p className="text-xs text-on-surface-variant">
+                        {meta.total === 0
+                          ? 'No reservations'
+                          : `Showing ${(page - 1) * PAGE_LIMIT + 1}–${Math.min(page * PAGE_LIMIT, meta.total)} of ${meta.total}`}
+                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => goToPage(page - 1)}
+                          disabled={page <= 1}
+                          aria-label="Previous page"
+                          className="w-8 h-8 flex items-center justify-center rounded border border-outline-variant text-on-surface-variant hover:bg-surface-container transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          <ChevronLeft size={15} />
+                        </button>
+                        {Array.from({ length: meta.totalPages }, (_, i) => i + 1)
+                          .filter(p => p === 1 || p === meta.totalPages || Math.abs(p - page) <= 1)
+                          .reduce<(number | '…')[]>((acc, p, i, arr) => {
+                            if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push('…')
+                            acc.push(p)
+                            return acc
+                          }, [])
+                          .map((p, i) =>
+                            p === '…'
+                              ? <span key={`ellipsis-${i}`} className="w-8 h-8 flex items-center justify-center text-on-surface-variant text-sm">…</span>
+                              : <button
+                                  key={p}
+                                  onClick={() => goToPage(p as number)}
+                                  aria-label={`Page ${p}`}
+                                  aria-current={page === p ? 'page' : undefined}
+                                  className={`w-8 h-8 flex items-center justify-center rounded border text-sm font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary transition-colors duration-150 ${
+                                    page === p
+                                      ? 'border-primary bg-primary text-on-primary'
+                                      : 'border-outline-variant text-on-surface-variant hover:bg-surface-container'
+                                  }`}
+                                >
+                                  {p}
+                                </button>
+                          )}
+                        <button
+                          onClick={() => goToPage(page + 1)}
+                          disabled={page >= meta.totalPages}
+                          aria-label="Next page"
+                          className="w-8 h-8 flex items-center justify-center rounded border border-outline-variant text-on-surface-variant hover:bg-surface-container transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          <ChevronRight size={15} />
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
               </div>
@@ -552,14 +723,14 @@ export default function ReservationsPage() {
         isOpen={reservationModal !== null}
         onClose={() => setReservationModal(null)}
         units={rawUnits}
-        onSuccess={fetchData}
+        onSuccess={() => fetchData(page, filterUnit, filterStart, filterEnd)}
         editReservation={editReservation}
       />
       <NewReservationBottomSheet
         isOpen={reservationModal !== null}
         onClose={() => setReservationModal(null)}
         units={rawUnits}
-        onSuccess={fetchData}
+        onSuccess={() => fetchData(page, filterUnit, filterStart, filterEnd)}
         editReservation={editReservation}
       />
     </>

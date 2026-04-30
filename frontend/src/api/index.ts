@@ -137,11 +137,14 @@ async function apiFetchPaged<T>(
 
 export const api = {
   dashboard: {
-    weeklyAvailability: (params: { start_date: string; end_date?: string; property_id?: string }) => {
+    weeklyAvailability: async (params: { start_date: string; end_date?: string; property_id?: string }) => {
       const qs = new URLSearchParams({ start_date: params.start_date })
       if (params.end_date)    qs.set('end_date',    params.end_date)
       if (params.property_id) qs.set('property_id', params.property_id)
-      return apiFetch<WeeklyAvailabilityResponse>(`/dashboard/weekly-availability?${qs}`)
+      const res = await request(`/dashboard/weekly-availability?${qs}`)
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.message ?? res.statusText)
+      return body as WeeklyAvailabilityResponse
     },
   },
   auth: {

@@ -1,59 +1,410 @@
-# Minut take-home assignment (fullstack 2026)
+# Booking Management System
 
-Thank you for taking the time for this assignment. We aim for the assignment to take roughly 4 hours, but it may take a little longer. As soon as you are done please submit it to us either as a compressed file or as a git repository which we can access. Please do not post this document online or share it with anyone else. If you need clarifications don’t hesitate to contact us.
+A fullstack application for managing rental units and reservations.  
+Built as part of a take-home assignment using a modern TypeScript stack.
 
-In this assignment you will build a simple booking system that can be used for managing guests staying at a rented flat. The end user is someone managing a flat on Airbnb or similar.
+---
 
-## Part 1. Create a simple REST API backend for a managing reservations and rental units
-The backend should fulfill the following requirements:
+# 🏗️ Architecture Overview
 
-- Build it using Node.js with TypeScript
-- Runnable using Docker
-- Expose an HTTP Rest API with CRUD support for the entities listed below.
-- Store entities in a database. The project scaffolding provides a connection to mongodb, but feel free to switch this out with another database if you want.
+- **Backend**: REST API (Node.js, Express, MongoDB)
+- **Frontend**: React SPA (Vite + TypeScript)
+- **Auth**: JWT (access token + refresh token)
+- **Storage**: AWS S3 (for images)
 
-### API entities:
+---
 
-#### Rental unit
+# 📦 Backend – Booking Management API
 
-Contains information about a rental unit/property/apartment. A rental unit contains at least a name, can also include an address.
+## Tech Stack
 
-#### Reservations
+| Layer | Technology |
+|------|-----------|
+| Runtime | Node.js 20+ |
+| Language | TypeScript |
+| Framework | Express |
+| Database | MongoDB + Mongoose |
+| Auth | JWT (Access + Refresh) |
+| Validation | class-validator |
+| Testing | Jest |
+| Docs | Swagger (OpenAPI) |
+| Logging | Winston |
 
-Contains booking information for a guest. A reservation contains at least a start and end date and guest name. It should be possible to query the API for all reservations by both rental unit and time.
+---
 
-## Part 2. Create a simple web application for viewing and managing the reservations and rental units
+## Features
 
-The web app should fulfill the following requirements.
+- Authentication (register, login, refresh, logout)
+- CRUD for rental units
+- CRUD for reservations
+- Booking conflict detection
+- Pagination and filtering
+- File upload (AWS S3 with presigned URLs)
+- Centralized error handling
 
-- Use the API that you have created above.
-- It should be possible to view the list of reservations
-- It should be possible to view the list of rental units
-- It should be possible to create and edit reservations
-- It is fine to make the task technically simpler by not choosing the optimal UX solution.
-- Use React, since our software stack is based on React we also prefer the solution to be completed with React.
-- Regarding HTML, CSS & JavaScript, feel free to use the latest and greatest. :)
+---
+
+## Project Structure
 
 
+src/
+├── config/
+├── controllers/
+├── dtos/
+├── exceptions/
+├── interfaces/
+├── middlewares/
+├── models/
+├── routes/
+├── services/
+├── utils/
+└── test/
 
 
+---
 
-## Interview expectations
-During the interview we expect you to be able to present your solution and to answer questions related to how and why you’ve designed the project the way you did. Below are some topics we’re interested in discussing with you in detail (comments regarding these topics in the code are greatly appreciated) :
+## Environment Variables
 
-- API:
-  - Design: Your design should take into account the relationship between the entities.
-  - Documentation
-  - Versioning
-  - Input validation
-- Authentication + Authorization
-- Error handling
-- Infrastructure for hosting applications
-- Data modeling
-  - Relationships
-  - Versioning
-- Security aspects
-- Stability aspects
-- Performance aspects
-  - Scalability
-- Testing
+Create `.env`:
+
+
+PORT=3000
+
+MONGO_URI=mongodb://localhost:27017
+DB_NAME=booking_db
+
+JWT_SECRET=your-secret
+JWT_REFRESH_SECRET=your-refresh-secret
+
+AWS_REGION=eu-north-1
+AWS_S3_BUCKET=your-bucket
+AWS_ACCESS_KEY_ID=your-key
+AWS_SECRET_ACCESS_KEY=your-secret
+
+
+---
+
+## Running Locally
+
+
+npm install
+npm run dev
+
+
+---
+
+## Docker
+
+
+docker-compose up --build
+
+
+---
+
+## API Base URL
+
+
+http://localhost:3000/api/v1
+
+
+---
+
+## Authentication
+
+### Strategy
+
+- Access Token (15 min expiry)
+- Refresh Token (7 days, HTTP-only cookie)
+
+### Endpoints
+
+
+POST /auth/register
+POST /auth/login
+POST /auth/refresh
+POST /auth/logout
+GET /auth/me
+
+
+---
+
+## Rental Units
+
+
+GET /rental-units
+POST /rental-units
+GET /rental-units/:id
+PUT /rental-units/:id
+DELETE /rental-units/:id
+
+
+---
+
+## Reservations
+
+
+GET /reservations
+POST /reservations
+GET /reservations/:id
+PUT /reservations/:id
+DELETE /reservations/:id
+
+
+---
+
+## Booking Conflict Logic
+
+A reservation conflicts if:
+
+
+existing.startDate < new.endDate
+AND
+existing.endDate > new.startDate
+
+
+Returns:
+
+
+409 Conflict
+
+
+---
+
+## Pagination & Filtering
+
+Example:
+
+
+GET /reservations?rentalUnitId=123&startDate=2025-01-01&endDate=2025-01-10&page=1&limit=10
+
+
+Response:
+
+
+{
+"data": [...],
+"meta": {
+"page": 1,
+"limit": 10,
+"total": 50,
+"totalPages": 5
+}
+}
+
+
+---
+
+## Error Format
+
+
+{
+"error": {
+"code": "ERROR_CODE",
+"message": "Description"
+}
+}
+
+
+---
+
+## Key Design Decisions
+
+- **Reference-based data modeling** for scalability
+- **JWT auth** for stateless architecture
+- **Conflict detection at service layer**
+- **Offset pagination** for simplicity
+- **Centralized error handling**
+
+---
+
+## Trade-offs
+
+- MongoDB chosen for speed of development (relational DB better for strict constraints)
+- Offset pagination instead of cursor (simpler for assignment)
+- Stateless auth (harder token revocation)
+
+---
+
+## Future Improvements
+
+- DB-level locking for booking conflicts
+- Cursor-based pagination
+- Role-based access control
+- Rate limiting
+
+---
+
+# 💻 Frontend – Booking Management Web App
+
+## Tech Stack
+
+| Layer | Technology |
+|------|-----------|
+| Framework | React |
+| Language | TypeScript |
+| Build Tool | Vite |
+| State | React Query |
+| Routing | React Router |
+| Forms | React Hook Form + Zod |
+| Styling | Tailwind CSS |
+| API | Axios |
+
+---
+
+## Features
+
+- Authentication (login/register/logout)
+- View rental units
+- View reservations
+- Create & edit reservations
+- Filtering by date and rental unit
+- Pagination
+- Booking conflict handling
+
+---
+
+## Project Structure
+
+
+src/
+├── api/
+├── components/
+├── features/
+├── hooks/
+├── layouts/
+├── pages/
+├── routes/
+├── types/
+└── utils/
+
+
+---
+
+## Environment Variables
+
+
+VITE_API_BASE_URL=http://localhost:3000/api/v1
+
+
+---
+
+## Running Locally
+
+
+npm install
+npm run dev
+
+
+---
+
+## Authentication Flow
+
+- Access token stored in memory
+- Refresh token stored in HTTP-only cookie
+- Automatic token refresh on 401
+
+---
+
+## API Requests
+
+
+Authorization: Bearer <accessToken>
+
+
+Handled via Axios interceptors.
+
+---
+
+## State Management
+
+Uses React Query for:
+
+- caching
+- pagination
+- background refetching
+
+---
+
+## Forms & Validation
+
+- React Hook Form
+- Zod schemas
+
+---
+
+## Booking Conflict Handling
+
+If API returns:
+
+
+409 BOOKING_CONFLICT
+
+
+UI:
+- Displays error message
+- Prevents submission
+
+---
+
+## Pagination & Filtering
+
+
+GET /reservations?page=1&limit=10&rentalUnitId=&startDate=&endDate=
+
+
+---
+
+## Error Handling
+
+- 401 → refresh token
+- 400 → validation errors
+- 409 → conflict message
+- 500 → fallback UI
+
+---
+
+## UI Notes
+
+- Minimal UI for clarity
+- Focus on functionality over design
+- Simple forms and lists
+
+---
+
+## Key Design Decisions
+
+- React Query for server state
+- In-memory token storage (security)
+- Backend-driven validation
+- Simple component structure
+
+---
+
+## Trade-offs
+
+- No global state library (kept simple)
+- Minimal styling
+- No optimistic updates
+
+---
+
+## Future Improvements
+
+- Calendar booking UI
+- Better UX feedback
+- Mobile responsiveness
+- Offline support
+
+---
+
+# 🚀 Final Notes
+
+This project focuses on:
+
+- clean API design
+- real-world authentication strategy
+- handling edge cases (booking conflicts)
+- scalability considerations
+- clear separation of concerns
+
+The implementation prioritizes **clarity, correctness, and practical trade-offs** within a limited timeframe.

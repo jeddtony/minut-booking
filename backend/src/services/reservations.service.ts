@@ -10,6 +10,7 @@ type ReservationUpdatePayload = {
   guestName?: string;
   startDate?: Date;
   endDate?: Date;
+  status?: 'confirmed' | 'pending' | 'cancelled';
 };
 
 export class ReservationsService {
@@ -77,6 +78,7 @@ export class ReservationsService {
     if (dto.guestName !== undefined) payload.guestName = dto.guestName;
     if (dto.startDate !== undefined) payload.startDate = new Date(dto.startDate);
     if (dto.endDate !== undefined) payload.endDate = new Date(dto.endDate);
+    if (dto.status !== undefined) payload.status = dto.status;
 
     if (payload.startDate && payload.endDate && payload.startDate >= payload.endDate) {
       throw new HttpException(400, 'startDate must be before endDate');

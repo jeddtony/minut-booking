@@ -25,6 +25,37 @@ export interface Reservation {
   updatedAt: string
 }
 
+export interface DashboardSummary {
+  total_units: number
+  active_reservations: number
+  occupancy_rate: number
+  checkins_today: number
+  checkouts_today: number
+}
+
+export interface DashboardGridDay {
+  date: string
+  reservation: { id: string; guest_name: string } | null
+}
+
+export interface DashboardGridRow {
+  property_id: string
+  days: DashboardGridDay[]
+}
+
+export interface DashboardProperty {
+  id: string
+  name: string
+  bookings: { id: string; guest_name: string; start_date: string; end_date: string }[]
+}
+
+export interface WeeklyAvailabilityResponse {
+  summary: DashboardSummary
+  week_range: { start_date: string; end_date: string }
+  properties: DashboardProperty[]
+  grid: DashboardGridRow[]
+}
+
 export interface User {
   _id: string
   name: string
@@ -105,6 +136,14 @@ async function apiFetchPaged<T>(
 }
 
 export const api = {
+  dashboard: {
+    weeklyAvailability: (params: { start_date: string; end_date?: string; property_id?: string }) => {
+      const qs = new URLSearchParams({ start_date: params.start_date })
+      if (params.end_date)    qs.set('end_date',    params.end_date)
+      if (params.property_id) qs.set('property_id', params.property_id)
+      return apiFetch<WeeklyAvailabilityResponse>(`/dashboard/weekly-availability?${qs}`)
+    },
+  },
   auth: {
     register: (body: { name: string; email: string; password: string }) =>
       apiFetch<{ user: User; accessToken: string }>('/auth/register', {

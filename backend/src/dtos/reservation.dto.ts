@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNotEmpty, IsDateString, IsMongoId } from 'class-validator';
+import { IsString, IsOptional, IsNotEmpty, IsDateString, IsMongoId, IsIn } from 'class-validator';
 
 export class CreateReservationDto {
   @IsMongoId()
@@ -34,4 +34,8 @@ export class UpdateReservationDto {
   @IsDateString()
   @IsOptional()
   public endDate?: string;
+
+  @IsIn(['confirmed', 'pending', 'cancelled'])
+  @IsOptional()
+  public status?: 'confirmed' | 'pending' | 'cancelled';
 }

@@ -297,13 +297,13 @@ function ListSkeleton() {
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
 const navItems = [
-  { icon: LayoutDashboard, label: 'Dashboard',   active: false, to: '/' },
+  { icon: LayoutDashboard, label: 'Dashboard',   active: false, to: '/dashboard' },
   { icon: Building2,       label: 'Units',        active: true,  to: '/' },
   { icon: CalendarCheck,   label: 'Reservations', active: false, to: '/reservations' },
 ]
 
 const bottomNavItems = [
-  { icon: LayoutGrid,   label: 'Dashboard', active: false, to: '/' },
+  { icon: LayoutGrid,   label: 'Dashboard', active: false, to: '/dashboard' },
   { icon: Building,     label: 'Units',     active: true,  to: '/' },
   { icon: CalendarDays, label: 'Booking',   active: false, to: '/reservations' },
   { icon: User,         label: 'Profile',   active: false, to: '#' },

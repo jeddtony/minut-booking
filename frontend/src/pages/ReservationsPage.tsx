@@ -359,7 +359,7 @@ export default function ReservationsPage() {
           </div>
 
           <nav className="flex-1 mt-6 px-3 space-y-1" aria-label="Main navigation">
-            <Link to="/" className="flex items-center gap-3 px-3 py-2 rounded transition-colors duration-200 cursor-pointer text-slate-400 hover:text-white hover:bg-slate-800/50">
+            <Link to="/dashboard" className="flex items-center gap-3 px-3 py-2 rounded transition-colors duration-200 cursor-pointer text-slate-400 hover:text-white hover:bg-slate-800/50">
               <LayoutDashboard size={18} />
               <span className="text-sm font-medium">Dashboard</span>
             </Link>
@@ -691,7 +691,7 @@ export default function ReservationsPage() {
           aria-label="Mobile navigation"
         >
           {[
-            { icon: LayoutGrid,   label: 'Dashboard', active: false, to: '/' },
+            { icon: LayoutGrid,   label: 'Dashboard', active: false, to: '/dashboard' },
             { icon: Building,     label: 'Units',     active: false, to: '/' },
             { icon: CalendarDays, label: 'Booking',   active: true,  to: '/reservations' },
             { icon: User,         label: 'Profile',   active: false, to: '#' },

@@ -1,5 +1,5 @@
 import { useState, FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, Navigate } from 'react-router-dom'
 import { Building2, Mail, Lock, Eye, EyeOff, Loader2, ArrowRight } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
@@ -7,7 +7,7 @@ const inputCls =
   'w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all duration-200'
 
 export default function LoginPage() {
-  const { login } = useAuth()
+  const { login, user, isLoading } = useAuth()
   const navigate = useNavigate()
 
   const [email, setEmail] = useState('')
@@ -22,13 +22,15 @@ export default function LoginPage() {
     setError(null)
     try {
       await login(email, password)
-      navigate('/', { replace: true })
+      navigate('/dashboard', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {
       setSubmitting(false)
     }
   }
+
+  if (!isLoading && user) return <Navigate to="/dashboard" replace />
 
   return (
     <div className="min-h-screen flex font-sans">
@@ -41,7 +43,7 @@ export default function LoginPage() {
         </div>
 
         {/* Logo */}
-        <div className="relative flex items-center gap-3">
+        <Link to="/" className="relative flex items-center gap-3 w-fit">
           <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shrink-0">
             <Building2 size={22} className="text-white" />
           </div>
@@ -49,7 +51,7 @@ export default function LoginPage() {
             <h1 className="text-xl font-bold text-white tracking-tight leading-none">StayDesk</h1>
             <p className="text-[10px] text-slate-400 font-medium tracking-widest uppercase mt-0.5">Management</p>
           </div>
-        </div>
+        </Link>
 
         {/* Hero content */}
         <div className="relative space-y-8">
@@ -88,12 +90,12 @@ export default function LoginPage() {
       <div className="flex-1 flex items-center justify-center bg-surface px-6 py-12">
         <div className="w-full max-w-[400px] space-y-8">
           {/* Mobile logo */}
-          <div className="flex lg:hidden items-center gap-3">
+          <Link to="/" className="flex lg:hidden items-center gap-3 w-fit">
             <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center">
               <Building2 size={18} className="text-white" />
             </div>
             <span className="text-xl font-bold text-on-surface tracking-tight">StayDesk</span>
-          </div>
+          </Link>
 
           {/* Heading */}
           <div className="space-y-1">

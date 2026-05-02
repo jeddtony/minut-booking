@@ -1,11 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import {
-  LayoutDashboard,
-  Building2,
   CalendarCheck,
-  UserCircle,
-  Settings,
   Search,
   Bell,
   MoreVertical,
@@ -18,14 +14,13 @@ import {
   CalendarDays,
   User,
   Pencil,
-  LogOut,
 } from 'lucide-react'
-import { useAuth } from '../context/AuthContext'
 import NewReservationModal from '../components/NewReservationModal'
 import NewReservationBottomSheet from '../components/NewReservationBottomSheet'
 import AddPropertyModal from '../components/AddPropertyModal'
 import AddPropertyBottomSheet from '../components/AddPropertyBottomSheet'
 import { api, RentalUnit, Reservation, getUnitId } from '../api'
+import Sidebar from '../components/Sidebar'
 
 type StatusType = 'Available' | 'Occupied'
 type FilterType = 'all' | 'available' | 'occupied'
@@ -296,29 +291,15 @@ function ListSkeleton() {
 }
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
-const navItems = [
-  { icon: LayoutDashboard, label: 'Dashboard',   active: false, to: '/dashboard' },
-  { icon: Building2,       label: 'Units',        active: true,  to: '/' },
-  { icon: CalendarCheck,   label: 'Reservations', active: false, to: '/reservations' },
-]
-
 const bottomNavItems = [
   { icon: LayoutGrid,   label: 'Dashboard', active: false, to: '/dashboard' },
-  { icon: Building,     label: 'Units',     active: true,  to: '/' },
+  { icon: Building,     label: 'Units',     active: true,  to: '/units' },
   { icon: CalendarDays, label: 'Booking',   active: false, to: '/reservations' },
   { icon: User,         label: 'Profile',   active: false, to: '#' },
 ]
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function StayDeskPage() {
-  const { logout } = useAuth()
-  const navigate = useNavigate()
-
-  async function handleLogout() {
-    await logout()
-    navigate('/login', { replace: true })
-  }
-
   const [reservationOpen, setReservationOpen] = useState(false)
   const [propertyModal, setPropertyModal] = useState<PropertyModal>(null)
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
@@ -367,54 +348,7 @@ export default function StayDeskPage() {
     <>
     <div className="min-h-screen bg-surface font-sans animate-page-enter">
 
-      {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col fixed left-0 top-0 h-full w-[260px] bg-[#0F172A] border-r border-slate-800 z-40">
-        <div className="px-6 py-6 flex items-center gap-3">
-          <div className="w-8 h-8 bg-primary-container rounded flex items-center justify-center shrink-0">
-            <Building2 size={18} className="text-white" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-white tracking-tight leading-none">StayDesk</h1>
-            <p className="text-[10px] text-slate-400 font-medium tracking-widest uppercase mt-0.5">Management</p>
-          </div>
-        </div>
-
-        <nav className="flex-1 mt-6 px-3 space-y-1" aria-label="Main navigation">
-          {navItems.map(({ icon: Icon, label, active, to }) => (
-            <Link
-              key={label}
-              to={to}
-              className={`flex items-center gap-3 px-3 py-2 rounded transition-colors duration-200 cursor-pointer ${
-                active
-                  ? 'bg-teal-600/10 text-teal-400 border-l-4 border-teal-500'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-              }`}
-              aria-current={active ? 'page' : undefined}
-            >
-              <Icon size={18} />
-              <span className="text-sm font-medium">{label}</span>
-            </Link>
-          ))}
-        </nav>
-
-        <div className="px-3 py-4 border-t border-slate-800 space-y-1">
-          <a href="#" className="flex items-center gap-3 px-3 py-2 rounded text-slate-400 hover:text-white hover:bg-slate-800/50 transition-colors duration-200 cursor-pointer">
-            <UserCircle size={18} />
-            <span className="text-sm">Profile</span>
-          </a>
-          <a href="#" className="flex items-center gap-3 px-3 py-2 rounded text-slate-400 hover:text-white hover:bg-slate-800/50 transition-colors duration-200 cursor-pointer">
-            <Settings size={18} />
-            <span className="text-sm">Settings</span>
-          </a>
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500/50"
-          >
-            <LogOut size={18} />
-            <span className="text-sm">Sign out</span>
-          </button>
-        </div>
-      </aside>
+      <Sidebar />
 
       {/* Mobile Header */}
       <header className="flex md:hidden justify-between items-center px-4 h-16 fixed top-0 w-full bg-white/80 backdrop-blur-md border-b border-slate-200 z-50">

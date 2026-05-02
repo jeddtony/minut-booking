@@ -16,7 +16,7 @@ export class RentalUnitsRoute implements Routes {
   }
 
   private initializeRoutes(): void {
-    this.router.get(this.path, AuthMiddleware, this.controller.getAll);
+    this.router.get(this.path, this.controller.getAll);
     this.router.get(`${this.path}/:id`, AuthMiddleware, this.controller.getById);
     this.router.post(
       this.path,

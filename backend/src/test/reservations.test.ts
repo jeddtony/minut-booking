@@ -118,16 +118,95 @@ describe('ReservationsService', () => {
       await expect(service.create(dto)).rejects.toMatchObject({ status: 400 });
     });
 
+    it('should throw 409 when the rental unit is unavailable for the selected period', async () => {
+      (RentalUnitModel.findById as jest.Mock).mockResolvedValue({ _id: VALID_UNIT_ID });
+      (ReservationModel.exists as jest.Mock).mockResolvedValue({ _id: 'existing-id' });
+
+      const dto = { rentalUnitId: VALID_UNIT_ID, guestName: 'Frank', startDate: '2025-06-01', endDate: '2025-06-07' };
+
+      await expect(service.create(dto)).rejects.toMatchObject({ status: 409 });
+    });
+
     it('should create a reservation successfully', async () => {
       const mockUnit = { _id: VALID_UNIT_ID };
       const mockReservation = { _id: VALID_RESERVATION_ID, guestName: 'Eve' };
       (RentalUnitModel.findById as jest.Mock).mockResolvedValue(mockUnit);
+      (ReservationModel.exists as jest.Mock).mockResolvedValue(null);
       (ReservationModel.create as jest.Mock).mockResolvedValue(mockReservation);
 
       const dto = { rentalUnitId: VALID_UNIT_ID, guestName: 'Eve', startDate: '2025-06-01', endDate: '2025-06-07' };
       const result = await service.create(dto);
 
       expect(result).toEqual(mockReservation);
+    });
+  });
+
+  describe('update', () => {
+    const currentReservation = {
+      _id: VALID_RESERVATION_ID,
+      rentalUnitId: { toString: () => VALID_UNIT_ID },
+      guestName: 'Grace',
+      startDate: new Date('2025-06-01'),
+      endDate: new Date('2025-06-07'),
+      status: 'confirmed',
+    };
+
+    it('should throw 404 when reservation to update is not found', async () => {
+      (ReservationModel.findById as jest.Mock).mockResolvedValue(null);
+
+      await expect(service.update(VALID_RESERVATION_ID, { guestName: 'X' })).rejects.toMatchObject({ status: 404 });
+    });
+
+    it('should throw 404 when the new rentalUnitId does not exist', async () => {
+      (ReservationModel.findById as jest.Mock).mockResolvedValue(currentReservation);
+      (RentalUnitModel.findById as jest.Mock).mockResolvedValue(null);
+
+      await expect(
+        service.update(VALID_RESERVATION_ID, { rentalUnitId: VALID_UNIT_ID }),
+      ).rejects.toMatchObject({ status: 404 });
+    });
+
+    it('should throw 400 when the effective date range is invalid', async () => {
+      (ReservationModel.findById as jest.Mock).mockResolvedValue(currentReservation);
+
+      // Only endDate provided — merged with current startDate (2025-06-01) produces an invalid range
+      await expect(
+        service.update(VALID_RESERVATION_ID, { endDate: '2025-05-30' }),
+      ).rejects.toMatchObject({ status: 400 });
+    });
+
+    it('should throw 409 when the rental unit is unavailable for the updated period', async () => {
+      (ReservationModel.findById as jest.Mock).mockResolvedValue(currentReservation);
+      (ReservationModel.exists as jest.Mock).mockResolvedValue({ _id: 'conflicting-id' });
+
+      await expect(
+        service.update(VALID_RESERVATION_ID, { startDate: '2025-06-05', endDate: '2025-06-10' }),
+      ).rejects.toMatchObject({ status: 409 });
+    });
+
+    it('should update a reservation successfully', async () => {
+      const updatedReservation = { ...currentReservation, guestName: 'Updated Guest' };
+      (ReservationModel.findById as jest.Mock).mockResolvedValue(currentReservation);
+      (ReservationModel.exists as jest.Mock).mockResolvedValue(null);
+      (ReservationModel.findByIdAndUpdate as jest.Mock).mockResolvedValue(updatedReservation);
+
+      const result = await service.update(VALID_RESERVATION_ID, { guestName: 'Updated Guest' });
+
+      expect(result).toEqual(updatedReservation);
+    });
+
+    it('should not conflict with itself when updating dates', async () => {
+      const updatedReservation = { ...currentReservation, startDate: new Date('2025-06-03') };
+      (ReservationModel.findById as jest.Mock).mockResolvedValue(currentReservation);
+      (ReservationModel.exists as jest.Mock).mockResolvedValue(null);
+      (ReservationModel.findByIdAndUpdate as jest.Mock).mockResolvedValue(updatedReservation);
+
+      await service.update(VALID_RESERVATION_ID, { startDate: '2025-06-03' });
+
+      // The exists query must exclude the reservation being updated
+      expect(ReservationModel.exists).toHaveBeenCalledWith(
+        expect.objectContaining({ _id: expect.objectContaining({ $ne: expect.anything() }) }),
+      );
     });
   });
 

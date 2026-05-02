@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { RentalUnitModel } from '@models/rental-unit.model';
-import { ReservationModel, IReservation } from '@models/reservation.model';
+import { ReservationModel, ReservationStatus, IReservation } from '@models/reservation.model';
 import {
   WeeklyAvailabilityResult,
   MonthlyAvailabilityResult,
@@ -139,28 +139,28 @@ export class DashboardService {
       // Confirmed reservations that haven't fully ended (active today or in the future)
       ReservationModel.countDocuments({
         rentalUnitId: { $in: unitIds },
-        status: 'confirmed',
+        status: ReservationStatus.CONFIRMED,
         endDate: { $gt: todayUTC },
       }),
 
       // Check-ins today
       ReservationModel.countDocuments({
         rentalUnitId: { $in: unitIds },
-        status: 'confirmed',
+        status: ReservationStatus.CONFIRMED,
         startDate: { $gte: todayUTC, $lt: tomorrowUTC },
       }),
 
       // Check-outs today
       ReservationModel.countDocuments({
         rentalUnitId: { $in: unitIds },
-        status: 'confirmed',
+        status: ReservationStatus.CONFIRMED,
         endDate: { $gte: todayUTC, $lt: tomorrowUTC },
       }),
 
       // All confirmed reservations overlapping the requested range
       ReservationModel.find({
         rentalUnitId: { $in: unitIds },
-        status: 'confirmed',
+        status: ReservationStatus.CONFIRMED,
         startDate: { $lt: endDate },
         endDate: { $gt: startDate },
       }).lean() as Promise<LeanReservation[]>,

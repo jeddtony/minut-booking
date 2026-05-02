@@ -1,5 +1,5 @@
 import mongoose, { FilterQuery } from 'mongoose';
-import { IReservation, ReservationModel } from '@models/reservation.model';
+import { IReservation, ReservationModel, ReservationStatus } from '@models/reservation.model';
 import { RentalUnitModel } from '@models/rental-unit.model';
 import { CreateReservationDto, UpdateReservationDto } from '@dtos/reservation.dto';
 import { HttpException } from '@exceptions/HttpException';
@@ -10,7 +10,7 @@ type ReservationUpdatePayload = {
   guestName?: string;
   startDate?: Date;
   endDate?: Date;
-  status?: 'confirmed' | 'pending' | 'cancelled';
+  status?: ReservationStatus;
 };
 
 export class ReservationsService {
@@ -64,14 +64,20 @@ export class ReservationsService {
     const endDate = new Date(dto.endDate);
     if (startDate >= endDate) throw new HttpException(400, 'startDate must be before endDate');
 
+    await this.checkAvailability(dto.rentalUnitId, startDate, endDate);
+
     return ReservationModel.create({ ...dto, startDate, endDate });
   }
 
   public async update(id: string, dto: UpdateReservationDto): Promise<IReservation> {
-    if (dto.rentalUnitId) {
-      const unit = await RentalUnitModel.findById(dto.rentalUnitId);
-      if (!unit) throw new HttpException(404, `Rental unit with id ${dto.rentalUnitId} not found`);
-    }
+    // Fetch current reservation and validate the new unit (if changed) in parallel
+    const [current, newUnit] = await Promise.all([
+      ReservationModel.findById(id),
+      dto.rentalUnitId ? RentalUnitModel.findById(dto.rentalUnitId) : Promise.resolve(null),
+    ]);
+
+    if (!current) throw new HttpException(404, `Reservation with id ${id} not found`);
+    if (dto.rentalUnitId && !newUnit) throw new HttpException(404, `Rental unit with id ${dto.rentalUnitId} not found`);
 
     const payload: ReservationUpdatePayload = {};
     if (dto.rentalUnitId !== undefined) payload.rentalUnitId = dto.rentalUnitId;
@@ -80,9 +86,14 @@ export class ReservationsService {
     if (dto.endDate !== undefined) payload.endDate = new Date(dto.endDate);
     if (dto.status !== undefined) payload.status = dto.status;
 
-    if (payload.startDate && payload.endDate && payload.startDate >= payload.endDate) {
-      throw new HttpException(400, 'startDate must be before endDate');
-    }
+    // Merge with current values so the full effective range is always validated
+    const effectiveUnitId = payload.rentalUnitId ?? current.rentalUnitId.toString();
+    const effectiveStart = payload.startDate ?? current.startDate;
+    const effectiveEnd = payload.endDate ?? current.endDate;
+
+    if (effectiveStart >= effectiveEnd) throw new HttpException(400, 'startDate must be before endDate');
+
+    await this.checkAvailability(effectiveUnitId, effectiveStart, effectiveEnd, id);
 
     const reservation = await ReservationModel.findByIdAndUpdate(id, payload, { new: true, runValidators: true });
     if (!reservation) throw new HttpException(404, `Reservation with id ${id} not found`);
@@ -93,5 +104,30 @@ export class ReservationsService {
     const reservation = await ReservationModel.findByIdAndDelete(id);
     if (!reservation) throw new HttpException(404, `Reservation with id ${id} not found`);
     return reservation;
+  }
+
+  // Throws 409 if a non-cancelled reservation already occupies the date range for the unit.
+  // Pass excludeId when updating so the reservation being edited doesn't conflict with itself.
+  private async checkAvailability(
+    rentalUnitId: string,
+    startDate: Date,
+    endDate: Date,
+    excludeId?: string,
+  ): Promise<void> {
+    const query: FilterQuery<IReservation> = {
+      rentalUnitId,
+      status: { $ne: ReservationStatus.CANCELLED },
+      startDate: { $lt: endDate },
+      endDate: { $gt: startDate },
+    };
+    if (excludeId) query._id = { $ne: new mongoose.Types.ObjectId(excludeId) };
+
+    const conflict = await ReservationModel.exists(query);
+    if (conflict) {
+      throw new HttpException(
+        409,
+        `Rental unit is not available from ${startDate.toISOString().slice(0, 10)} to ${endDate.toISOString().slice(0, 10)}`,
+      );
+    }
   }
 }

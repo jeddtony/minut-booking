@@ -9,20 +9,144 @@ servers:
     description: "Development server"
 
 tags:
+  - name: "Auth"
+    description: "Registration, login, token refresh and session management"
   - name: "Rental Units"
     description: "Operations on rental units"
   - name: "Reservations"
     description: "Operations on reservations"
 
+security:
+  - bearerAuth: []
+
 paths:
+  # ---------------------------------------------------------------------------
+  # Auth
+  # ---------------------------------------------------------------------------
+  /api/v1/auth/register:
+    post:
+      summary: "Register a new user"
+      tags:
+        - "Auth"
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterDto"
+      responses:
+        "201":
+          description: "User registered. Sets an HTTP-only refreshToken cookie."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/auth/login:
+    post:
+      summary: "Log in with email and password"
+      tags:
+        - "Auth"
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginDto"
+      responses:
+        "200":
+          description: "Login successful. Sets an HTTP-only refreshToken cookie."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/auth/refresh:
+    post:
+      summary: "Obtain a new access token using the refresh token cookie"
+      tags:
+        - "Auth"
+      security: []
+      description: "Reads the `refreshToken` HTTP-only cookie set by login or register. Returns a fresh access token without requiring credentials."
+      responses:
+        "200":
+          description: "New access token issued"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      accessToken:
+                        type: string
+                        example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/auth/logout:
+    post:
+      summary: "Log out and invalidate the refresh token"
+      tags:
+        - "Auth"
+      description: "Clears the refresh token from the database and expires the cookie."
+      responses:
+        "200":
+          description: "Logged out successfully"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "logged out"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/auth/me:
+    get:
+      summary: "Get the authenticated user's profile"
+      tags:
+        - "Auth"
+      responses:
+        "200":
+          description: "Current user"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ---------------------------------------------------------------------------
+  # Rental Units
+  # ---------------------------------------------------------------------------
   /api/v1/rental-units:
     get:
       summary: "List all rental units"
       tags:
         - "Rental Units"
+      parameters:
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/limit"
       responses:
         "200":
-          description: "A list of rental units"
+          description: "A paginated list of rental units"
           content:
             application/json:
               schema:
@@ -32,8 +156,12 @@ paths:
                     type: array
                     items:
                       $ref: "#/components/schemas/RentalUnit"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
                   message:
                     type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
     post:
       summary: "Create a rental unit"
       tags:
@@ -58,6 +186,8 @@ paths:
                     type: string
         "400":
           $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /api/v1/rental-units/{id}:
     parameters:
@@ -82,6 +212,8 @@ paths:
                     $ref: "#/components/schemas/RentalUnit"
                   message:
                     type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
     put:
@@ -108,6 +240,8 @@ paths:
                     type: string
         "400":
           $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
     delete:
@@ -126,9 +260,14 @@ paths:
                     $ref: "#/components/schemas/RentalUnit"
                   message:
                     type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
 
+  # ---------------------------------------------------------------------------
+  # Reservations
+  # ---------------------------------------------------------------------------
   /api/v1/reservations:
     get:
       summary: "List all reservations"
@@ -147,17 +286,19 @@ paths:
           schema:
             type: string
             format: date
-          description: "Filter reservations starting on or after this date"
+          description: "Return reservations whose date range overlaps this date or later"
         - name: endDate
           in: query
           required: false
           schema:
             type: string
             format: date
-          description: "Filter reservations ending on or before this date"
+          description: "Return reservations whose date range overlaps up to this date"
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/limit"
       responses:
         "200":
-          description: "A list of reservations"
+          description: "A paginated list of reservations"
           content:
             application/json:
               schema:
@@ -167,8 +308,14 @@ paths:
                     type: array
                     items:
                       $ref: "#/components/schemas/Reservation"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
                   message:
                     type: string
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
     post:
       summary: "Create a reservation"
       tags:
@@ -193,8 +340,12 @@ paths:
                     type: string
         "400":
           $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
 
   /api/v1/reservations/{id}:
     parameters:
@@ -219,6 +370,8 @@ paths:
                     $ref: "#/components/schemas/Reservation"
                   message:
                     type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
     put:
@@ -245,8 +398,12 @@ paths:
                     type: string
         "400":
           $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
     delete:
       summary: "Delete a reservation"
       tags:
@@ -263,11 +420,103 @@ paths:
                     $ref: "#/components/schemas/Reservation"
                   message:
                     type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "Access token obtained from /auth/login or /auth/register. Expires in 15 minutes."
+
+  parameters:
+    page:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: "Page number"
+    limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+      description: "Items per page"
+
   schemas:
+    # --- Auth ---
+    RegisterDto:
+      type: object
+      required:
+        - name
+        - email
+        - password
+      properties:
+        name:
+          type: string
+          example: "Alice Smith"
+        email:
+          type: string
+          format: email
+          example: "alice@example.com"
+        password:
+          type: string
+          minLength: 6
+          example: "secret123"
+
+    LoginDto:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: "alice@example.com"
+        password:
+          type: string
+          example: "secret123"
+
+    User:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: "507f1f77bcf86cd799439011"
+        name:
+          type: string
+          example: "Alice Smith"
+        email:
+          type: string
+          format: email
+          example: "alice@example.com"
+
+    AuthResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            accessToken:
+              type: string
+              description: "JWT access token — expires in 15 minutes"
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            user:
+              $ref: "#/components/schemas/User"
+
+    # --- Rental Units ---
     RentalUnit:
       type: object
       properties:
@@ -294,30 +543,7 @@ components:
         imageUrl:
           type: string
           nullable: true
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-
-    Reservation:
-      type: object
-      properties:
-        _id:
-          type: string
-        rentalUnitId:
-          oneOf:
-            - type: string
-            - $ref: "#/components/schemas/RentalUnit"
-        guestName:
-          type: string
-        startDate:
-          type: string
-          format: date
-        endDate:
-          type: string
-          format: date
+          description: "Presigned S3 URL — valid for 1 hour"
         createdAt:
           type: string
           format: date-time
@@ -384,6 +610,36 @@ components:
           format: binary
           description: "Replacement image file (max 5 MB)"
 
+    # --- Reservations ---
+    Reservation:
+      type: object
+      properties:
+        _id:
+          type: string
+        rentalUnitId:
+          oneOf:
+            - type: string
+            - $ref: "#/components/schemas/RentalUnit"
+          description: "ObjectId string, or populated rental unit object"
+        guestName:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [confirmed, pending, cancelled]
+          default: confirmed
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
     CreateReservationDto:
       type: object
       required:
@@ -418,6 +674,22 @@ components:
         endDate:
           type: string
           format: date
+        status:
+          type: string
+          enum: [confirmed, pending, cancelled]
+
+    # --- Shared ---
+    PaginationMeta:
+      type: object
+      properties:
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+        totalPages:
+          type: integer
 
     ErrorResponse:
       type: object
@@ -426,6 +698,12 @@ components:
           type: string
 
   responses:
+    Unauthorized:
+      description: "Missing or invalid access token"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
     NotFound:
       description: "Resource not found"
       content:
@@ -433,7 +711,13 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
     ValidationError:
-      description: "Validation error"
+      description: "Request body or query parameter failed validation"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: "Resource conflict — e.g. email already registered, or rental unit unavailable for the requested dates"
       content:
         application/json:
           schema:

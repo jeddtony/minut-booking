@@ -6,12 +6,14 @@ import ReservationsPage from './pages/ReservationsPage'
 import DashboardPage from './pages/DashboardPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
+import BookingPage from './pages/BookingPage'
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
+          <Route path="/" element={<BookingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route
@@ -23,7 +25,7 @@ export default function App() {
             }
           />
           <Route
-            path="/"
+            path="/units"
             element={
               <ProtectedRoute>
                 <StayDeskPage />

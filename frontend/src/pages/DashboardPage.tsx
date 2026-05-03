@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Building2, CalendarCheck,
-  Search, Bell, TrendingUp, Clock, LogIn, LogOut, Plus,
-  LayoutGrid, Building, CalendarDays, User, ChevronLeft, ChevronRight,
+  TrendingUp, Clock, LogIn, LogOut, Plus,
+  User, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { api, DashboardGridDay, WeeklyAvailabilityResponse, MonthlyAvailabilityResponse } from '../api'
 import Sidebar from '../components/Sidebar'
+import MobileHeader from '../components/MobileHeader'
+import MobileBottomNav from '../components/MobileBottomNav'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -170,15 +172,6 @@ function StatSkeleton() {
   )
 }
 
-// ─── Nav config ───────────────────────────────────────────────────────────────
-
-const bottomNavItems = [
-  { Icon: LayoutGrid,   label: 'Dashboard', to: '/dashboard', active: true  },
-  { Icon: Building,     label: 'Units',     to: '/units',     active: false },
-  { Icon: CalendarDays, label: 'Booking',   to: '/reservations', active: false },
-  { Icon: User,         label: 'Profile',   to: '#',          active: false },
-]
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -264,21 +257,7 @@ export default function DashboardPage() {
 
       <Sidebar />
 
-      {/* ── Mobile Header ────────────────────────────────────────────────── */}
-      <header className="flex md:hidden justify-between items-center px-4 h-16 fixed top-0 w-full bg-white/80 backdrop-blur-md border-b border-slate-200 z-50">
-        <span className="text-lg font-black text-primary">StayDesk</span>
-        <div className="flex items-center gap-4">
-          <button aria-label="Search" className="cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary rounded">
-            <Search size={20} className="text-slate-600" />
-          </button>
-          <button aria-label="Notifications" className="cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary rounded">
-            <Bell size={20} className="text-slate-600" />
-          </button>
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center">
-            <span className="text-white text-xs font-bold">JD</span>
-          </div>
-        </div>
-      </header>
+      <MobileHeader />
 
       {/* ── Main Content ─────────────────────────────────────────────────── */}
       <main className="md:ml-[260px] pt-20 md:pt-10 pb-24 md:pb-10 px-4 md:px-0 min-h-screen">
@@ -577,25 +556,7 @@ export default function DashboardPage() {
         <span className="text-sm font-semibold hidden sm:inline">New Reservation</span>
       </Link>
 
-      {/* ── Mobile Bottom Nav ─────────────────────────────────────────────── */}
-      <nav
-        aria-label="Mobile navigation"
-        className="fixed bottom-0 left-0 w-full md:hidden bg-white border-t border-slate-200 flex justify-around items-center h-16 z-50 shadow-mobile-nav"
-      >
-        {bottomNavItems.map(({ Icon, label, to, active }) => (
-          <Link
-            key={label}
-            to={to}
-            aria-current={active ? 'page' : undefined}
-            className={`flex flex-col items-center gap-0.5 px-3 py-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary rounded ${
-              active ? 'text-primary' : 'text-slate-400'
-            }`}
-          >
-            <Icon size={20} />
-            <span className="text-[10px] font-medium">{label}</span>
-          </Link>
-        ))}
-      </nav>
+      <MobileBottomNav />
     </div>
   )
 }

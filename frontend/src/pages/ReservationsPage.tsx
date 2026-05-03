@@ -1,18 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
 import {
-  Search,
-  Bell,
+  Building,
   MoreHorizontal,
   CalendarDays,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Building,
   TrendingUp,
   Plus,
-  LayoutGrid,
-  User,
   Pencil,
   Trash2,
 } from 'lucide-react'
@@ -20,6 +15,8 @@ import NewReservationModal from '../components/NewReservationModal'
 import NewReservationBottomSheet from '../components/NewReservationBottomSheet'
 import { api, RentalUnit, Reservation, PaginationMeta, getUnitId, getUnitName } from '../api'
 import Sidebar from '../components/Sidebar'
+import MobileHeader from '../components/MobileHeader'
+import MobileBottomNav from '../components/MobileBottomNav'
 
 type ReservationStatus = 'Active' | 'Confirmed' | 'Completed'
 type ReservationModal = { mode: 'new' } | { mode: 'edit'; reservation: Reservation } | null
@@ -334,21 +331,7 @@ export default function ReservationsPage() {
 
         <Sidebar />
 
-        {/* Mobile Header */}
-        <header className="flex md:hidden justify-between items-center px-4 h-16 fixed top-0 w-full bg-white/80 backdrop-blur-md border-b border-slate-200 z-50">
-          <span className="text-lg font-black text-primary">StayDesk</span>
-          <div className="flex items-center gap-4">
-            <button aria-label="Search" className="cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary rounded">
-              <Search size={20} className="text-slate-600" />
-            </button>
-            <button aria-label="Notifications" className="cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary rounded">
-              <Bell size={20} className="text-slate-600" />
-            </button>
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 border border-slate-200 flex items-center justify-center cursor-pointer">
-              <span className="text-white text-xs font-bold">JD</span>
-            </div>
-          </div>
-        </header>
+        <MobileHeader />
 
         {/* Main Content */}
         <main className="md:ml-[260px] pt-20 md:pt-0 min-h-screen pb-28 md:pb-12 px-4 md:px-0">
@@ -627,28 +610,7 @@ export default function ReservationsPage() {
           </div>
         </main>
 
-        {/* Mobile Bottom Nav */}
-        <nav
-          className="fixed bottom-0 left-0 w-full md:hidden flex justify-around items-center h-16 bg-white border-t border-slate-200 z-40 shadow-mobile-nav"
-          aria-label="Mobile navigation"
-        >
-          {[
-            { icon: LayoutGrid,   label: 'Dashboard', active: false, to: '/dashboard' },
-            { icon: Building,     label: 'Units',     active: false, to: '/units' },
-            { icon: CalendarDays, label: 'Booking',   active: true,  to: '/reservations' },
-            { icon: User,         label: 'Profile',   active: false, to: '#' },
-          ].map(({ icon: Icon, label, active, to }) => (
-            <Link
-              key={label}
-              to={to}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1 transition-colors duration-200 cursor-pointer ${active ? 'text-primary' : 'text-slate-400'}`}
-              aria-current={active ? 'page' : undefined}
-            >
-              <Icon size={22} />
-              <span className="text-[10px] font-medium">{label}</span>
-            </Link>
-          ))}
-        </nav>
+        <MobileBottomNav />
 
       </div>
 

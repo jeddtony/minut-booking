@@ -1,37 +1,40 @@
 {
   "compilerOptions": {
-    /* Language and environment */
     "target": "ES2017",
     "lib": ["ES2017", "ES2018.AsyncIterable"],
     "module": "CommonJS",
     "moduleResolution": "node",
 
-    /* Paths */
     "rootDir": "./src",
     "outDir": "./dist",
+
     "baseUrl": "./src",
     "paths": {
-      "@/*": ["*"]
+      "@config": ["config/index"],
+      "@database": ["database/index"],
+      "@controllers/*": ["controllers/*"],
+      "@dtos/*": ["dtos/*"],
+      "@exceptions/*": ["exceptions/*"],
+      "@interfaces/*": ["interfaces/*"],
+      "@middlewares/*": ["middlewares/*"],
+      "@models/*": ["models/*"],
+      "@routes/*": ["routes/*"],
+      "@services/*": ["services/*"],
+      "@utils/*": ["utils/*"]
     },
 
-    /* Strictness */
     "strict": true,
-    "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true,
-
-    /* Interop */
     "esModuleInterop": true,
     "resolveJsonModule": true,
 
-    /* Decorators (needed for class-validator) */
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
 
-    /* Output */
     "sourceMap": true,
     "declaration": true,
 
-    /* Misc */
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
     "ignoreDeprecations": "5.0"
   },
 

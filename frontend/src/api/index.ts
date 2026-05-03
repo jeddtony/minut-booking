@@ -104,7 +104,9 @@ export interface Paginated<T> {
   meta: PaginationMeta
 }
 
-const BASE = '/api/v1'
+export const BASE_URL = import.meta.env.VITE_API_URL ?? '/api/v1'
+
+const BASE = BASE_URL
 
 async function request(path: string, init?: RequestInit, retryOn401 = true): Promise<Response> {
   const token = tokenStore.get()

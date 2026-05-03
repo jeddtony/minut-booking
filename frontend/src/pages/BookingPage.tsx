@@ -5,6 +5,7 @@ import {
   ArrowRight, ChevronRight, Shield, Zap, Clock,
 } from 'lucide-react'
 import type { RentalUnit } from '../api'
+import { BASE_URL } from '../api'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -55,7 +56,7 @@ export default function BookingPage() {
   useEffect(() => {
     async function load() {
       try {
-        const res  = await fetch('/api/v1/rental-units?limit=3')
+        const res  = await fetch(`${BASE_URL}/rental-units?limit=3`)
         const body = await res.json()
         if (res.ok) setUnits(body.data ?? [])
       } catch {
@@ -78,7 +79,7 @@ export default function BookingPage() {
     setError('')
     setSubmitting(true)
     try {
-      const res  = await fetch('/api/v1/reservations', {
+      const res  = await fetch(`${BASE_URL}/reservations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rentalUnitId: selectedUnit, guestName, startDate, endDate }),

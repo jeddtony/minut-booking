@@ -4,8 +4,7 @@ module.exports = {
   apps: [
     {
       name: 'minut-booking',
-      script: './node_modules/.bin/node',
-      args: '-r tsconfig-paths/register dist/server.js',
+      script: 'dist/server.js',
       cwd: __dirname,
       instances: 1,
       exec_mode: 'fork',

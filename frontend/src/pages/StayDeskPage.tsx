@@ -1,12 +1,14 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   CalendarCheck,
   MoreVertical,
   MapPin,
   Calendar,
   Plus,
-  PlusCircle,
   Pencil,
+  SlidersHorizontal,
+  X,
+  Building2,
 } from 'lucide-react'
 import NewReservationModal from '../components/NewReservationModal'
 import NewReservationBottomSheet from '../components/NewReservationBottomSheet'
@@ -91,6 +93,15 @@ const statusListConfig: Record<StatusType, string> = {
   Available: 'bg-emerald-100 text-emerald-800',
   Occupied:  'bg-slate-100 text-slate-700',
 }
+
+const PROPERTY_TYPE_OPTIONS = [
+  { value: 'apartment', label: 'Apartment' },
+  { value: 'house',     label: 'House' },
+  { value: 'villa',     label: 'Villa' },
+  { value: 'studio',    label: 'Studio' },
+  { value: 'condo',     label: 'Condo' },
+  { value: 'other',     label: 'Other' },
+]
 
 // ─── Shared card menu ─────────────────────────────────────────────────────────
 function CardMenu({ onEdit }: { onEdit: () => void }) {
@@ -233,28 +244,40 @@ function NewListingCard() {
 // ─── Mobile list row ──────────────────────────────────────────────────────────
 function UnitListItem({ property, onEdit }: { property: UnitDisplay; onEdit: () => void }) {
   return (
-    <div className="bg-white border border-slate-200 rounded p-4 flex items-center gap-4 shadow-card hover:shadow-card-hover transition-shadow duration-200">
-      <div className="w-16 h-16 rounded overflow-hidden flex-shrink-0">
-        {property.imageUrl
-          ? <img src={property.imageUrl} alt={property.name} className="w-full h-full object-cover" />
-          : (
-            <div className={`w-full h-full bg-gradient-to-br ${property.gradient} flex items-center justify-center`}>
-              <span className="text-white text-xl font-bold opacity-40">{property.initials}</span>
+    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
+      <div className="flex items-stretch">
+        <div className="w-24 flex-shrink-0">
+          {property.imageUrl
+            ? <img src={property.imageUrl} alt={property.name} className="w-full h-full object-cover" />
+            : (
+              <div className={`w-full h-full bg-gradient-to-br ${property.gradient} flex items-center justify-center`}>
+                <span className="text-white text-2xl font-bold opacity-40">{property.initials}</span>
+              </div>
+            )
+          }
+        </div>
+
+        <div className="flex-1 min-w-0 p-3 flex flex-col justify-between">
+          <div className="flex items-start justify-between gap-1">
+            <div className="min-w-0">
+              <h3 className="font-semibold text-[15px] leading-snug text-on-surface truncate">{property.name}</h3>
+              <p className="text-xs text-on-surface-variant flex items-center gap-1 mt-0.5 truncate">
+                <MapPin size={11} className="shrink-0" />
+                {property.address}
+              </p>
             </div>
-          )
-        }
-      </div>
+            <ListMenu onEdit={onEdit} />
+          </div>
 
-      <div className="flex-1 min-w-0">
-        <h3 className="font-semibold text-[18px] leading-snug text-on-surface truncate">{property.name}</h3>
-        <p className="text-xs text-on-surface-variant truncate mt-0.5">{property.address}</p>
-      </div>
-
-      <div className="flex items-center gap-3 shrink-0">
-        <span className={`px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide hidden sm:block ${statusListConfig[property.status]}`}>
-          {property.status.toUpperCase()}
-        </span>
-        <ListMenu onEdit={onEdit} />
+          <div className="flex items-center justify-between mt-2">
+            <span className="text-primary font-bold text-sm">
+              ${property.price}<span className="text-[11px] font-normal text-on-surface-variant">/night</span>
+            </span>
+            <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold tracking-wide ${statusListConfig[property.status]}`}>
+              {property.status.toUpperCase()}
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -295,12 +318,36 @@ export default function StayDeskPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchData = useCallback(async () => {
+  // Server-side filter state
+  const [filterCity, setFilterCity]                 = useState('')
+  const [filterState, setFilterState]               = useState('')
+  const [filterPropertyType, setFilterPropertyType] = useState('')
+  const [filterMinPrice, setFilterMinPrice]         = useState('')
+  const [filterMaxPrice, setFilterMaxPrice]         = useState('')
+  const [showFilters, setShowFilters]               = useState(false)
+
+  const hasActiveFilters = !!(filterCity || filterState || filterPropertyType || filterMinPrice || filterMaxPrice)
+
+  function clearFilters() {
+    setFilterCity(''); setFilterState(''); setFilterPropertyType('')
+    setFilterMinPrice(''); setFilterMaxPrice('')
+  }
+
+  const fetchData = useCallback(async (
+    city = '', state = '', propertyType = '', minPrice = '', maxPrice = ''
+  ) => {
     setLoading(true)
     setError(null)
     try {
       const [{ data: units }, { data: reservations }] = await Promise.all([
-        api.rentalUnits.list({ limit: 100 }),
+        api.rentalUnits.list({
+          limit: 100,
+          ...(city         && { city }),
+          ...(state        && { state }),
+          ...(propertyType && { propertyType }),
+          ...(minPrice     && { minPrice: Number(minPrice) }),
+          ...(maxPrice     && { maxPrice: Number(maxPrice) }),
+        }),
         api.reservations.list({ limit: 500 }),
       ])
       setRawUnits(units)
@@ -312,7 +359,15 @@ export default function StayDeskPage() {
     }
   }, [])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  // Debounce filter changes — text inputs don't fire on every keystroke
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      fetchData(filterCity, filterState, filterPropertyType, filterMinPrice, filterMaxPrice)
+    }, 350)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [filterCity, filterState, filterPropertyType, filterMinPrice, filterMaxPrice, fetchData])
 
   const availableCount = displayUnits.filter(u => u.status === 'Available').length
   const occupiedCount  = displayUnits.filter(u => u.status === 'Occupied').length
@@ -349,7 +404,7 @@ export default function StayDeskPage() {
               <div className="hidden md:flex items-center gap-2 mb-1">
                 <span className="text-primary font-bold uppercase tracking-widest text-[10px]">Operations</span>
               </div>
-              <h2 className="text-[32px] font-bold leading-tight tracking-tight text-on-surface">Rental Units</h2>
+              <h2 className="text-2xl md:text-[32px] font-bold leading-tight tracking-tight text-on-surface">Rental Units</h2>
               <p className="text-on-surface-variant text-sm mt-1 leading-relaxed">
                 Manage your property portfolio and availability.
               </p>
@@ -373,14 +428,165 @@ export default function StayDeskPage() {
             </div>
           </div>
 
-          {/* Mobile: full-width Add Unit CTA */}
-          <button
-            onClick={() => setPropertyModal({ mode: 'add' })}
-            className="md:hidden w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary-container text-white py-4 rounded-lg font-bold text-base transition-colors duration-200 shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary mb-5"
-          >
-            <PlusCircle size={20} />
-            Add Unit
-          </button>
+          {/* ── Filter bar ─────────────────────────────────────────────── */}
+          {/* Desktop: always visible */}
+          <div className="hidden md:flex items-center gap-3 mb-8 flex-wrap">
+            <input
+              type="text"
+              placeholder="City"
+              value={filterCity}
+              onChange={e => setFilterCity(e.target.value)}
+              className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary w-36 transition-shadow"
+            />
+            <input
+              type="text"
+              placeholder="State"
+              value={filterState}
+              onChange={e => setFilterState(e.target.value)}
+              className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary w-36 transition-shadow"
+            />
+            <select
+              value={filterPropertyType}
+              onChange={e => setFilterPropertyType(e.target.value)}
+              className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary bg-white cursor-pointer transition-shadow"
+            >
+              <option value="">All types</option>
+              {PROPERTY_TYPE_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-slate-400 font-medium">$</span>
+              <input
+                type="number"
+                placeholder="Min price"
+                value={filterMinPrice}
+                min={0}
+                onChange={e => setFilterMinPrice(e.target.value)}
+                className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary w-28 transition-shadow"
+              />
+              <span className="text-xs text-slate-400">–</span>
+              <input
+                type="number"
+                placeholder="Max price"
+                value={filterMaxPrice}
+                min={0}
+                onChange={e => setFilterMaxPrice(e.target.value)}
+                className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary w-28 transition-shadow"
+              />
+            </div>
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors duration-150 cursor-pointer"
+              >
+                <X size={14} /> Clear filters
+              </button>
+            )}
+          </div>
+
+          {/* Mobile: action buttons */}
+          <div className="md:hidden flex gap-3 mb-5">
+            <button
+              onClick={() => setReservationOpen(true)}
+              className="flex-1 flex items-center justify-center gap-2 border border-primary text-primary hover:bg-teal-50 py-3 rounded-xl font-semibold text-sm transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <CalendarCheck size={16} />
+              New Booking
+            </button>
+            <button
+              onClick={() => setPropertyModal({ mode: 'add' })}
+              className="flex-1 flex items-center justify-center gap-2 bg-primary hover:bg-primary-container text-white py-3 rounded-xl font-semibold text-sm transition-colors duration-200 shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <Plus size={16} />
+              Add Unit
+            </button>
+          </div>
+
+          {/* Mobile: filter toggle + collapsible panel */}
+          <div className="md:hidden mb-4">
+            <button
+              onClick={() => setShowFilters(v => !v)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-semibold tracking-wide transition-colors duration-200 cursor-pointer border focus:outline-none focus:ring-2 focus:ring-primary ${
+                hasActiveFilters
+                  ? 'bg-primary text-white border-primary'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <SlidersHorizontal size={13} />
+              Filters{hasActiveFilters ? ` (${[filterCity, filterState, filterPropertyType, filterMinPrice, filterMaxPrice].filter(Boolean).length})` : ''}
+            </button>
+
+            {showFilters && (
+              <div className="mt-3 p-4 bg-white border border-slate-200 rounded-xl shadow-sm space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">City</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Stockholm"
+                      value={filterCity}
+                      onChange={e => setFilterCity(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">State</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. California"
+                      value={filterState}
+                      onChange={e => setFilterState(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Property Type</label>
+                  <select
+                    value={filterPropertyType}
+                    onChange={e => setFilterPropertyType(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
+                  >
+                    <option value="">All types</option>
+                    {PROPERTY_TYPE_OPTIONS.map(o => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Price Range (per night)</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      placeholder="Min $"
+                      value={filterMinPrice}
+                      min={0}
+                      onChange={e => setFilterMinPrice(e.target.value)}
+                      className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                    <span className="text-slate-400 text-sm">–</span>
+                    <input
+                      type="number"
+                      placeholder="Max $"
+                      value={filterMaxPrice}
+                      min={0}
+                      onChange={e => setFilterMaxPrice(e.target.value)}
+                      className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                  </div>
+                </div>
+                {hasActiveFilters && (
+                  <button
+                    onClick={clearFilters}
+                    className="w-full flex items-center justify-center gap-1.5 py-2 text-sm font-medium text-red-500 hover:bg-red-50 rounded-lg transition-colors duration-150 cursor-pointer border border-red-200"
+                  >
+                    <X size={14} /> Clear all filters
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Filter chips — mobile only */}
           <div className="md:hidden flex items-center gap-3 mb-5 overflow-x-auto pb-1 scrollbar-hide">
@@ -406,13 +612,31 @@ export default function StayDeskPage() {
           {error && (
             <div className="text-center py-16">
               <p className="text-on-surface-variant mb-4">{error}</p>
-              <button onClick={fetchData} className="text-primary text-sm font-medium hover:underline cursor-pointer">Try again</button>
+              <button onClick={() => fetchData(filterCity, filterState, filterPropertyType, filterMinPrice, filterMaxPrice)} className="text-primary text-sm font-medium hover:underline cursor-pointer">Try again</button>
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!error && !loading && filteredUnits.length === 0 && (
+            <div className="text-center py-16 px-4">
+              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Building2 size={24} className="text-slate-400" />
+              </div>
+              <p className="font-semibold text-on-surface mb-1">No units found</p>
+              <p className="text-sm text-on-surface-variant mb-4">
+                {hasActiveFilters ? 'Try adjusting your filters.' : 'Add your first rental unit to get started.'}
+              </p>
+              {hasActiveFilters && (
+                <button onClick={clearFilters} className="text-primary text-sm font-medium hover:underline cursor-pointer">
+                  Clear filters
+                </button>
+              )}
             </div>
           )}
 
           {/* Mobile: list view */}
           {!error && (
-            <div className="md:hidden space-y-2">
+            <div className="md:hidden space-y-3">
               {loading
                 ? Array.from({ length: 3 }).map((_, i) => <ListSkeleton key={i} />)
                 : filteredUnits.map(u => (
@@ -433,7 +657,7 @@ export default function StayDeskPage() {
                 ? Array.from({ length: 3 }).map((_, i) => <CardSkeleton key={i} />)
                 : (
                   <>
-                    {displayUnits.map(u => (
+                    {filteredUnits.map(u => (
                       <PropertyCard
                         key={u._id}
                         property={u}
@@ -456,10 +680,10 @@ export default function StayDeskPage() {
 
     </div>
 
-      <NewReservationModal       isOpen={reservationOpen}       onClose={() => setReservationOpen(false)} units={rawUnits} onSuccess={fetchData} />
-      <NewReservationBottomSheet isOpen={reservationOpen}       onClose={() => setReservationOpen(false)} units={rawUnits} onSuccess={fetchData} />
-      <AddPropertyModal          isOpen={propertyModal !== null} onClose={() => setPropertyModal(null)}   onSuccess={fetchData} editUnit={editUnit} />
-      <AddPropertyBottomSheet    isOpen={propertyModal !== null} onClose={() => setPropertyModal(null)}   onSuccess={fetchData} editUnit={editUnit} />
+      <NewReservationModal       isOpen={reservationOpen}       onClose={() => setReservationOpen(false)} units={rawUnits} onSuccess={() => fetchData(filterCity, filterState, filterPropertyType, filterMinPrice, filterMaxPrice)} />
+      <NewReservationBottomSheet isOpen={reservationOpen}       onClose={() => setReservationOpen(false)} units={rawUnits} onSuccess={() => fetchData(filterCity, filterState, filterPropertyType, filterMinPrice, filterMaxPrice)} />
+      <AddPropertyModal          isOpen={propertyModal !== null} onClose={() => setPropertyModal(null)}   onSuccess={() => fetchData(filterCity, filterState, filterPropertyType, filterMinPrice, filterMaxPrice)} editUnit={editUnit} />
+      <AddPropertyBottomSheet    isOpen={propertyModal !== null} onClose={() => setPropertyModal(null)}   onSuccess={() => fetchData(filterCity, filterState, filterPropertyType, filterMinPrice, filterMaxPrice)} editUnit={editUnit} />
     </>
   )
 }

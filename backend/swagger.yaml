@@ -144,6 +144,37 @@ paths:
       parameters:
         - $ref: "#/components/parameters/page"
         - $ref: "#/components/parameters/limit"
+        - name: city
+          in: query
+          required: false
+          schema:
+            type: string
+          description: "Case-insensitive city filter"
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+          description: "Case-insensitive state/region filter"
+        - name: propertyType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [apartment, house, villa, studio, condo, other]
+          description: "Filter by property type"
+        - name: minPrice
+          in: query
+          required: false
+          schema:
+            type: number
+          description: "Minimum price per night (inclusive)"
+        - name: maxPrice
+          in: query
+          required: false
+          schema:
+            type: number
+          description: "Maximum price per night (inclusive)"
       responses:
         "200":
           description: "A paginated list of rental units"

@@ -196,7 +196,12 @@ export const api = {
     me: () => apiFetch<User>('/auth/me'),
   },
   rentalUnits: {
-    list: (params?: { page?: number; limit?: number }) =>
+    list: (params?: {
+      page?: number; limit?: number
+      city?: string; state?: string
+      propertyType?: string
+      minPrice?: number; maxPrice?: number
+    }) =>
       apiFetchPaged<RentalUnit>('/rental-units', params),
     create: (form: FormData) =>
       apiFetch<RentalUnit>('/rental-units', { method: 'POST', body: form }),

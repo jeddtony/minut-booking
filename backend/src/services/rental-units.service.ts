@@ -1,4 +1,5 @@
-import { IRentalUnit, RentalUnitModel } from '@models/rental-unit.model';
+import { FilterQuery } from 'mongoose';
+import { IRentalUnit, RentalUnitModel, PropertyType } from '@models/rental-unit.model';
 import { CreateRentalUnitDto, UpdateRentalUnitDto } from '@dtos/rental-unit.dto';
 import { HttpException } from '@exceptions/HttpException';
 import { PaginatedResult } from '@interfaces/pagination.interface';
@@ -7,6 +8,14 @@ import { getPresignedUrl } from '@utils/s3';
 export type RentalUnitResponse = Omit<IRentalUnit, 'imageKey'> & {
   imageKey?: string;
   imageUrl?: string;
+};
+
+export type RentalUnitFilters = {
+  city?: string;
+  state?: string;
+  propertyType?: PropertyType;
+  minPrice?: number;
+  maxPrice?: number;
 };
 
 export class RentalUnitsService {
@@ -18,11 +27,23 @@ export class RentalUnitsService {
     return obj;
   }
 
-  public async findAll(page = 1, limit = 10): Promise<PaginatedResult<RentalUnitResponse>> {
+  public async findAll(page = 1, limit = 10, filters: RentalUnitFilters = {}): Promise<PaginatedResult<RentalUnitResponse>> {
+    const query: FilterQuery<IRentalUnit> = {};
+
+    if (filters.city) query.city = { $regex: filters.city, $options: 'i' };
+    if (filters.state) query.state = { $regex: filters.state, $options: 'i' };
+    if (filters.propertyType) query.propertyType = filters.propertyType;
+    if (filters.minPrice !== undefined || filters.maxPrice !== undefined) {
+      query.pricePerNight = {
+        ...(filters.minPrice !== undefined && { $gte: filters.minPrice }),
+        ...(filters.maxPrice !== undefined && { $lte: filters.maxPrice }),
+      };
+    }
+
     const skip = (page - 1) * limit;
     const [units, total] = await Promise.all([
-      RentalUnitModel.find().skip(skip).limit(limit),
-      RentalUnitModel.countDocuments(),
+      RentalUnitModel.find(query).skip(skip).limit(limit),
+      RentalUnitModel.countDocuments(query),
     ]);
     const data = await Promise.all(units.map(u => this.toResponse(u)));
     return {

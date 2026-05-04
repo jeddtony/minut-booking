@@ -52,6 +52,13 @@ export class RentalUnitsService {
     };
   }
 
+  /** Units loaded for description-based suggestions (no pagination). */
+  public async findForSuggestions(limit = 50): Promise<RentalUnitResponse[]> {
+    const capped = Math.min(100, Math.max(1, limit));
+    const units = await RentalUnitModel.find({}).limit(capped);
+    return Promise.all(units.map(u => this.toResponse(u)));
+  }
+
   public async findById(id: string): Promise<RentalUnitResponse> {
     const unit = await RentalUnitModel.findById(id);
     if (!unit) throw new HttpException(404, `Rental unit with id ${id} not found`);

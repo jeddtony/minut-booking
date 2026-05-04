@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
-  LayoutDashboard, Building2, CalendarCheck,
+  LayoutDashboard, Building2, CalendarCheck, MessageSquareText,
   UserCircle, Settings, LogOut,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { Icon: LayoutDashboard, label: 'Dashboard',   to: '/dashboard' },
   { Icon: Building2,       label: 'Units',        to: '/units' },
   { Icon: CalendarCheck,   label: 'Reservations', to: '/reservations' },
+  { Icon: MessageSquareText, label: 'Assist',     to: '/suggest' },
 ]
 
 export default function Sidebar() {

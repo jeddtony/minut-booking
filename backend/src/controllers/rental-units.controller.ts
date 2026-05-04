@@ -1,12 +1,17 @@
 import { NextFunction, Request, Response } from 'express';
 import { RentalUnitsService } from '@services/rental-units.service';
+import { RentalUnitSuggestionsService } from '@services/rental-unit-suggestions.service';
+import { SuggestionChatService } from '@services/suggestion-chat.service';
 import { CreateRentalUnitDto, UpdateRentalUnitDto } from '@dtos/rental-unit.dto';
+import { SuggestRentalUnitsDto } from '@dtos/rental-unit-suggestion.dto';
 import { PropertyType } from '@models/rental-unit.model';
 import { HttpException } from '@exceptions/HttpException';
 import { uploadToS3 } from '@utils/s3';
 
 export class RentalUnitsController {
   private rentalUnitsService = new RentalUnitsService();
+  private rentalUnitSuggestionsService = new RentalUnitSuggestionsService();
+  private suggestionChatService = new SuggestionChatService();
 
   public getAll = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -39,6 +44,26 @@ export class RentalUnitsController {
       const filters = { city, state, propertyType: propertyType as PropertyType | undefined, minPrice: parsedMinPrice, maxPrice: parsedMaxPrice };
       const { data, meta } = await this.rentalUnitsService.findAll(page, limit, filters);
       res.status(200).json({ data, meta, message: 'findAll' });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  public suggest = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const dto = req.body as SuggestRentalUnitsDto;
+      const userId = req.user!.id;
+      const { suggestions, source } = await this.rentalUnitSuggestionsService.suggest(dto.description, userId);
+      res.status(200).json({ data: { suggestions, source }, message: 'suggest' });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  public getSuggestChatHistory = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const messages = await this.suggestionChatService.getTranscript(req.user!.id);
+      res.status(200).json({ data: { messages }, message: 'suggestChatHistory' });
     } catch (error) {
       next(error);
     }

@@ -1,11 +1,11 @@
 import { Link, useLocation } from 'react-router-dom'
-import { LayoutGrid, Building, CalendarDays, User } from 'lucide-react'
+import { LayoutGrid, Building, CalendarDays, MessageSquareText } from 'lucide-react'
 
 const NAV_ITEMS = [
   { Icon: LayoutGrid,   label: 'Dashboard', to: '/dashboard' },
   { Icon: Building,     label: 'Units',     to: '/units' },
   { Icon: CalendarDays, label: 'Booking',   to: '/reservations' },
-  { Icon: User,         label: 'Profile',   to: '#' },
+  { Icon: MessageSquareText, label: 'Assist', to: '/suggest' },
 ]
 
 export default function MobileBottomNav() {

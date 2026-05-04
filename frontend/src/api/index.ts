@@ -15,6 +15,24 @@ export interface RentalUnit {
   updatedAt: string
 }
 
+export interface RentalUnitSuggestionItem {
+  rentalUnit: RentalUnit
+  matchScore: number
+  reason: string
+}
+
+export interface SuggestRentalUnitsResponse {
+  suggestions: RentalUnitSuggestionItem[]
+  source: 'openai' | 'keyword'
+}
+
+export interface SuggestionChatTranscriptMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  createdAt: string
+}
+
 export interface Reservation {
   _id: string
   rentalUnitId: RentalUnit | string  // populated in list, plain id after create
@@ -207,6 +225,14 @@ export const api = {
       apiFetch<RentalUnit>('/rental-units', { method: 'POST', body: form }),
     update: (id: string, form: FormData) =>
       apiFetch<RentalUnit>(`/rental-units/${id}`, { method: 'PUT', body: form }),
+    suggest: (body: { description: string }) =>
+      apiFetch<SuggestRentalUnitsResponse>('/rental-units/suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+    suggestHistory: () =>
+      apiFetch<{ messages: SuggestionChatTranscriptMessage[] }>('/rental-units/suggest/history'),
   },
   reservations: {
     list: (params?: { page?: number; limit?: number; rentalUnitId?: string; startDate?: string; endDate?: string }) =>

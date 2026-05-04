@@ -7,6 +7,7 @@ import DashboardPage from './pages/DashboardPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import BookingPage from './pages/BookingPage'
+import SuggestChatPage from './pages/SuggestChatPage'
 
 export default function App() {
   return (
@@ -37,6 +38,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <ReservationsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/suggest"
+            element={
+              <ProtectedRoute>
+                <SuggestChatPage />
               </ProtectedRoute>
             }
           />

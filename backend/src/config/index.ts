@@ -18,3 +18,7 @@ export const AWS_S3_BUCKET: string = process.env.AWS_S3_BUCKET ?? '';
 
 export const JWT_SECRET: string = process.env.JWT_SECRET ?? 'changeme_access_secret';
 export const JWT_REFRESH_SECRET: string = process.env.JWT_REFRESH_SECRET ?? 'changeme_refresh_secret';
+
+/** When set, rental unit suggestions use the OpenAI API for shortlisting and rationale; otherwise keyword overlap is used. */
+export const OPENAI_API_KEY: string = process.env.OPENAI_API_KEY ?? '';
+export const OPENAI_MODEL: string = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';

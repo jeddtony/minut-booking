@@ -32,8 +32,15 @@ export const ValidationMiddleware = <T extends object>(
   const forbidNonWhitelisted = options.forbidNonWhitelisted ?? source === 'body';
 
   return (req: Request, res: Response, next: NextFunction): void => {
-    const raw = source === 'query' ? flattenQuery(req.query) : req.body;
-    const dto = plainToInstance(type, raw as object, { exposeDefaultValues: true });
+    const raw =
+      source === 'query'
+        ? // Defaults so pagination fields exist; @Transform on the DTO still clamps/coerces.
+          { page: '1', limit: '10', ...flattenQuery(req.query) }
+        : req.body;
+    const dto = plainToInstance(type, raw as object, {
+      exposeDefaultValues: true,
+      enableImplicitConversion: true,
+    });
     validate(dto, { skipMissingProperties, whitelist: true, forbidNonWhitelisted }).then((errors: ValidationError[]) => {
       if (errors.length > 0) {
         const message = errors

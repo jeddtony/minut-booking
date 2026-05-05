@@ -93,11 +93,57 @@ npm run dev
 
 ---
 
-## Docker
+## Docker Compose (full stack)
 
+From the **repository root**, Compose runs the API, the Vite frontend, and MongoDB together.
 
-docker-compose up --build
+### Prerequisites
 
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose v2 (`docker compose`)
+
+### Environment file
+
+The API service loads **`backend/.env.development.local`**. Create that file (see [Environment Variables](#environment-variables) above) with at least:
+
+- `JWT_SECRET`, `JWT_REFRESH_SECRET`
+- Optional: `AWS_*` for S3 image uploads, `OPENAI_API_KEY` for rental suggestions
+
+Compose **overrides** `MONGO_URI` to `mongodb://mongo:27017` so the API talks to the `mongo` service inside the network. You do not need to point `MONGO_URI` at `localhost` for Docker.
+
+### Run
+
+```bash
+# From repo root
+docker compose up --build
+```
+
+On older installs you may use: `docker-compose up --build`.
+
+### URLs & ports
+
+| Service    | URL / port |
+|-----------|------------|
+| API       | http://localhost:3000 — Swagger at http://localhost:3000/api-docs |
+| Frontend  | http://localhost:5173 |
+| MongoDB   | `localhost:27018` on the host (maps to 27017 in the container) |
+
+The frontend container sets `VITE_API_URL=http://localhost:3000/api/v1` so the browser calls the API on your machine; Vite uses `VITE_PROXY_TARGET` to forward `/api` traffic to the `api` container during dev.
+
+### Stop and remove containers
+
+```bash
+docker compose down
+```
+
+To also remove the named volume (MongoDB data):
+
+```bash
+docker compose down -v
+```
+
+### Backend-only Compose
+
+Under **`backend/`**, a smaller `docker-compose.yml` runs only the API (dev image) and MongoDB for backend-focused work. Use that file’s directory as the Compose project context if you prefer not to start the frontend from the root.
 
 ---
 
@@ -283,7 +329,7 @@ src/
 ## Environment Variables
 
 
-VITE_API_BASE_URL=http://localhost:3000/api/v1
+VITE_API_URL=http://localhost:3000/api/v1
 
 
 ---

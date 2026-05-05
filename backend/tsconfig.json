@@ -11,6 +11,7 @@
     "baseUrl": "./src",
     "paths": {
       "@config": ["config/index"],
+      "@constants/*": ["constants/*"],
       "@database": ["database/index"],
       "@controllers/*": ["controllers/*"],
       "@dtos/*": ["dtos/*"],

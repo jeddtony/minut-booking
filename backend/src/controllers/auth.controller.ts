@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
+import { HttpStatus } from '@constants/http-status';
 import { AuthService } from '@services/auth.service';
 import { RegisterDto, LoginDto } from '@dtos/auth.dto';
 import { HttpException } from '@exceptions/HttpException';
@@ -18,7 +19,7 @@ export class AuthController {
       const dto: RegisterDto = req.body;
       const { user, accessToken, refreshToken } = await this.authService.register(dto);
       res.cookie('refreshToken', refreshToken, COOKIE_OPTIONS);
-      res.status(201).json({ data: { user, accessToken }, message: 'registered' });
+      res.status(HttpStatus.CREATED).json({ data: { user, accessToken }, message: 'registered' });
     } catch (error) {
       next(error);
     }
@@ -29,7 +30,7 @@ export class AuthController {
       const dto: LoginDto = req.body;
       const { user, accessToken, refreshToken } = await this.authService.login(dto);
       res.cookie('refreshToken', refreshToken, COOKIE_OPTIONS);
-      res.status(200).json({ data: { user, accessToken }, message: 'logged in' });
+      res.status(HttpStatus.OK).json({ data: { user, accessToken }, message: 'logged in' });
     } catch (error) {
       next(error);
     }
@@ -39,12 +40,12 @@ export class AuthController {
     try {
       const token: string | undefined = req.cookies?.refreshToken;
       if (!token) {
-        next(new HttpException(401, 'Refresh token not found'));
+        next(new HttpException(HttpStatus.UNAUTHORIZED, 'Refresh token not found'));
         return;
       }
       const { accessToken, refreshToken } = await this.authService.refresh(token);
       res.cookie('refreshToken', refreshToken, COOKIE_OPTIONS);
-      res.status(200).json({ data: { accessToken }, message: 'refreshed' });
+      res.status(HttpStatus.OK).json({ data: { accessToken }, message: 'refreshed' });
     } catch (error) {
       next(error);
     }
@@ -54,7 +55,7 @@ export class AuthController {
     try {
       await this.authService.logout(req.user!.id);
       res.clearCookie('refreshToken');
-      res.status(200).json({ message: 'logged out' });
+      res.status(HttpStatus.OK).json({ message: 'logged out' });
     } catch (error) {
       next(error);
     }
@@ -63,7 +64,7 @@ export class AuthController {
   public getMe = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const data = await this.authService.getMe(req.user!.id);
-      res.status(200).json({ data, message: 'me' });
+      res.status(HttpStatus.OK).json({ data, message: 'me' });
     } catch (error) {
       next(error);
     }

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { RentalUnitsController } from '@controllers/rental-units.controller';
+import { ListRentalUnitsQueryDto } from '@dtos/list-rental-units-query.dto';
 import { CreateRentalUnitDto, UpdateRentalUnitDto } from '@dtos/rental-unit.dto';
 import { SuggestRentalUnitsDto } from '@dtos/rental-unit-suggestion.dto';
 import { ValidationMiddleware } from '@middlewares/validation.middleware';
@@ -17,7 +18,7 @@ export class RentalUnitsRoute implements Routes {
   }
 
   private initializeRoutes(): void {
-    this.router.get(this.path, this.controller.getAll);
+    this.router.get(this.path, ValidationMiddleware(ListRentalUnitsQueryDto, { source: 'query' }), this.controller.getAll);
     this.router.post(
       `${this.path}/suggest`,
       AuthMiddleware,

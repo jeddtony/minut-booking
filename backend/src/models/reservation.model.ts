@@ -28,4 +28,10 @@ const reservationSchema = new Schema<IReservation>(
   },
 );
 
+/** Unit + status + stay window: conflict checks, dashboard availability, and filtered lists. */
+reservationSchema.index({ rentalUnitId: 1, status: 1, startDate: 1, endDate: 1 });
+
+/** Date overlap when querying across all units (e.g. findAll with only startDate/endDate). */
+reservationSchema.index({ startDate: 1, endDate: 1 });
+
 export const ReservationModel = mongoose.model<IReservation>('Reservation', reservationSchema);

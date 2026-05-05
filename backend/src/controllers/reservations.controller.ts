@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
+import { HttpStatus } from '@constants/http-status';
 import { ReservationsService } from '@services/reservations.service';
 import { CreateReservationDto, UpdateReservationDto } from '@dtos/reservation.dto';
 import { HttpException } from '@exceptions/HttpException';
@@ -13,22 +14,22 @@ export class ReservationsController {
       const { rentalUnitId, startDate, endDate } = req.query as Record<string, string | undefined>;
 
       if (startDate && !isValidDate(startDate)) {
-        next(new HttpException(400, 'startDate must be a valid ISO date string (e.g. 2025-07-01)'));
+        next(new HttpException(HttpStatus.BAD_REQUEST, 'startDate must be a valid ISO date string (e.g. 2025-07-01)'));
         return;
       }
       if (endDate && !isValidDate(endDate)) {
-        next(new HttpException(400, 'endDate must be a valid ISO date string (e.g. 2025-07-31)'));
+        next(new HttpException(HttpStatus.BAD_REQUEST, 'endDate must be a valid ISO date string (e.g. 2025-07-31)'));
         return;
       }
       if (startDate && endDate && new Date(startDate) >= new Date(endDate)) {
-        next(new HttpException(400, 'startDate must be before endDate'));
+        next(new HttpException(HttpStatus.BAD_REQUEST, 'startDate must be before endDate'));
         return;
       }
 
       const page = Math.max(1, parseInt(req.query.page as string) || 1);
       const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 10));
       const { data, meta } = await this.reservationsService.findAll(rentalUnitId, startDate, endDate, page, limit);
-      res.status(200).json({ data, meta, message: 'findAll' });
+      res.status(HttpStatus.OK).json({ data, meta, message: 'findAll' });
     } catch (error) {
       next(error);
     }
@@ -38,7 +39,7 @@ export class ReservationsController {
     try {
       const id = req.params.id as string;
       const data = await this.reservationsService.findById(id);
-      res.status(200).json({ data, message: 'findById' });
+      res.status(HttpStatus.OK).json({ data, message: 'findById' });
     } catch (error) {
       next(error);
     }
@@ -48,7 +49,7 @@ export class ReservationsController {
     try {
       const dto: CreateReservationDto = req.body;
       const data = await this.reservationsService.create(dto);
-      res.status(201).json({ data, message: 'created' });
+      res.status(HttpStatus.CREATED).json({ data, message: 'created' });
     } catch (error) {
       next(error);
     }
@@ -59,7 +60,7 @@ export class ReservationsController {
       const id = req.params.id as string;
       const dto: UpdateReservationDto = req.body;
       const data = await this.reservationsService.update(id, dto);
-      res.status(200).json({ data, message: 'updated' });
+      res.status(HttpStatus.OK).json({ data, message: 'updated' });
     } catch (error) {
       next(error);
     }
@@ -69,7 +70,7 @@ export class ReservationsController {
     try {
       const id = req.params.id as string;
       const data = await this.reservationsService.delete(id);
-      res.status(200).json({ data, message: 'deleted' });
+      res.status(HttpStatus.OK).json({ data, message: 'deleted' });
     } catch (error) {
       next(error);
     }

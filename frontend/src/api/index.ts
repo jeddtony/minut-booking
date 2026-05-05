@@ -23,7 +23,7 @@ export interface RentalUnitSuggestionItem {
 
 export interface SuggestRentalUnitsResponse {
   suggestions: RentalUnitSuggestionItem[]
-  source: 'openai' | 'keyword'
+  source: 'openai'
 }
 
 export interface SuggestionChatTranscriptMessage {

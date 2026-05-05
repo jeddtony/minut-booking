@@ -6,44 +6,6 @@ import {
   RentalUnitCatalogEntry,
 } from '@utils/llm/openai-rental-suggestions';
 
-const STOPWORDS = new Set([
-  'the',
-  'a',
-  'an',
-  'and',
-  'or',
-  'for',
-  'to',
-  'in',
-  'on',
-  'at',
-  'with',
-  'of',
-  'i',
-  'we',
-  'my',
-  'our',
-  'is',
-  'are',
-  'was',
-  'be',
-  'this',
-  'that',
-  'it',
-  'as',
-  'by',
-  'from',
-  'looking',
-  'want',
-  'need',
-  'would',
-  'like',
-  'stay',
-  'rent',
-  'unit',
-  'place',
-]);
-
 export type RentalUnitSuggestion = {
   rentalUnit: RentalUnitResponse;
   matchScore: number;
@@ -52,38 +14,9 @@ export type RentalUnitSuggestion = {
 
 export type SuggestRentalUnitsResult = {
   suggestions: RentalUnitSuggestion[];
-  source: 'openai' | 'keyword';
+  /** Always OpenAI-backed; empty array when the model returns nothing or the API is unavailable. */
+  source: 'openai';
 };
-
-function tokenize(text: string): string[] {
-  const raw = text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .filter(t => t.length > 1 && !STOPWORDS.has(t));
-  return [...new Set(raw)];
-}
-
-function unitSearchBlob(unit: RentalUnitResponse): string {
-  const parts = [
-    unit.name,
-    unit.city,
-    unit.state,
-    unit.propertyType,
-    unit.description ?? '',
-    String(unit.pricePerNight),
-  ];
-  return parts.join(' ').toLowerCase();
-}
-
-function scoreKeyword(description: string, unit: RentalUnitResponse): { score: number; matched: string[] } {
-  const q = tokenize(description);
-  if (q.length === 0) return { score: 0, matched: [] };
-  const blob = unitSearchBlob(unit);
-  const matched = q.filter(t => blob.includes(t));
-  const score = matched.length / q.length;
-  return { score, matched };
-}
 
 function toCatalogEntry(unit: RentalUnitResponse): RentalUnitCatalogEntry {
   return {
@@ -112,8 +45,8 @@ function mapOpenAIRowsToSuggestions(rows: OpenAIRentalSuggestionRow[], units: Re
   return out;
 }
 
-function formatAssistantSummary(suggestions: RentalUnitSuggestion[], source: 'openai' | 'keyword'): string {
-  const sourceLine = source === 'openai' ? '*Smart match (model-assisted).*' : '*Keyword match.*';
+function formatAssistantSummary(suggestions: RentalUnitSuggestion[]): string {
+  const sourceLine = '*Smart match (model-assisted).*';
   if (suggestions.length === 0) {
     return `No matching units found for this request.\n\n${sourceLine}`;
   }
@@ -132,31 +65,6 @@ function formatAssistantSummary(suggestions: RentalUnitSuggestion[], source: 'op
   return `${blocks.join('\n---\n\n')}\n\n${sourceLine}`;
 }
 
-function suggestKeyword(description: string, units: RentalUnitResponse[]): RentalUnitSuggestion[] {
-  const scored = units
-    .map(unit => {
-      const { score, matched } = scoreKeyword(description, unit);
-      const reason =
-        matched.length > 0
-          ? `Matches keywords from your description (${matched.slice(0, 5).join(', ')}).`
-          : 'General listing; weaker keyword overlap with your description.';
-      return { unit, score, reason, matched };
-    })
-    .filter(x => x.score > 0 || units.length <= 5)
-    .sort((a, b) => b.score - a.score);
-
-  const top = (scored.length > 0 ? scored : units.map(unit => ({ unit, score: 0, reason: 'Available unit.', matched: [] as string[] }))).slice(
-    0,
-    5,
-  );
-
-  return top.map((row, i) => ({
-    rentalUnit: row.unit,
-    matchScore: Math.round((row.score > 0 ? row.score : 0.1 - i * 0.01) * 100) / 100,
-    reason: row.reason,
-  }));
-}
-
 export class RentalUnitSuggestionsService {
   private rentalUnitsService = new RentalUnitsService();
   private suggestionChatService = new SuggestionChatService();
@@ -169,36 +77,20 @@ export class RentalUnitSuggestionsService {
       await this.suggestionChatService.appendExchange(
         userId,
         trimmed,
-        '**No listings yet.**\n\nThere are no rental units in the catalog to suggest.\n\n*Keyword match.*',
+        '**No listings yet.**\n\nThere are no rental units in the catalog to suggest.',
       );
-      return { suggestions: [], source: 'keyword' };
+      return { suggestions: [], source: 'openai' };
     }
 
     const history = await this.suggestionChatService.getHistoryForModel(userId);
     const catalog = units.map(toCatalogEntry);
     const rows = await getOpenAIRentalMatchSuggestions(trimmed, catalog, history);
 
-    let suggestions: RentalUnitSuggestion[];
-    let source: 'openai' | 'keyword';
+    const suggestions =
+      rows && rows.length > 0 ? mapOpenAIRowsToSuggestions(rows, units) : [];
 
-    if (rows && rows.length > 0) {
-      const mapped = mapOpenAIRowsToSuggestions(rows, units);
-      if (mapped.length > 0) {
-        suggestions = mapped;
-        source = 'openai';
-      } else {
-        const keywordContext = await this.suggestionChatService.getKeywordContext(userId, trimmed);
-        suggestions = suggestKeyword(keywordContext, units);
-        source = 'keyword';
-      }
-    } else {
-      const keywordContext = await this.suggestionChatService.getKeywordContext(userId, trimmed);
-      suggestions = suggestKeyword(keywordContext, units);
-      source = 'keyword';
-    }
+    await this.suggestionChatService.appendExchange(userId, trimmed, formatAssistantSummary(suggestions));
 
-    await this.suggestionChatService.appendExchange(userId, trimmed, formatAssistantSummary(suggestions, source));
-
-    return { suggestions, source };
+    return { suggestions, source: 'openai' };
   }
 }

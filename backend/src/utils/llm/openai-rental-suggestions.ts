@@ -32,7 +32,7 @@ export async function getOpenAIRentalMatchSuggestions(
   history: ChatTurnForModel[] = [],
 ): Promise<OpenAIRentalSuggestionRow[] | null> {
   if (!OPENAI_API_KEY) {
-    logger.warn('[OpenAI] OPENAI_API_KEY is not set — skipping OpenAI call, falling back to keyword ranking');
+    logger.warn('[OpenAI] OPENAI_API_KEY is not set — skipping suggestions');
     return null;
   }
   if (catalog.length === 0) {
@@ -101,7 +101,7 @@ export async function getOpenAIRentalMatchSuggestions(
     }
     return out.length > 0 ? out : null;
   } catch (e) {
-    logger.warn('OpenAI suggestions failed, falling back to keyword ranking', e);
+    logger.warn('OpenAI suggestions failed', e);
     return null;
   }
 }

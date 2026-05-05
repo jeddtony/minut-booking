@@ -23,7 +23,6 @@ export class SuggestionChatService {
     }));
   }
 
-  /** Concatenate recent turns for keyword scoring when OpenAI is unavailable. */
   /** Full transcript for the client UI (markdown content). */
   public async getTranscript(userId: string): Promise<SuggestionChatTranscriptMessage[]> {
     const doc = await SuggestionChatModel.findOne({ userId: new Types.ObjectId(userId) }).lean();
@@ -34,12 +33,6 @@ export class SuggestionChatService {
       content: m.content,
       createdAt: new Date(m.createdAt).toISOString(),
     }));
-  }
-
-  public async getKeywordContext(userId: string, latestDescription: string): Promise<string> {
-    const doc = await SuggestionChatModel.findOne({ userId: new Types.ObjectId(userId) }).lean();
-    const prior = (doc?.messages ?? []).slice(-10).map(m => m.content);
-    return [...prior, latestDescription].join(' ');
   }
 
   public async appendExchange(userId: string, userContent: string, assistantContent: string): Promise<void> {

@@ -87,7 +87,7 @@ function scoreKeyword(description: string, unit: RentalUnitResponse): { score: n
 
 function toCatalogEntry(unit: RentalUnitResponse): RentalUnitCatalogEntry {
   return {
-    id: String(unit._id),
+    rentalUnitId: String(unit._id),
     name: unit.name,
     city: unit.city,
     state: unit.state,

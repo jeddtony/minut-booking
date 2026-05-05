@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Send, Sparkles, Loader2, MessageSquareText } from 'lucide-react'
+import { Send, Sparkles, Loader2, MessageSquareText, CalendarCheck, MapPin } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import Sidebar from '../components/Sidebar'
 import MobileHeader from '../components/MobileHeader'
 import MobileBottomNav from '../components/MobileBottomNav'
 import ChatMarkdown from '../components/ChatMarkdown'
-import { api, SuggestionChatTranscriptMessage } from '../api'
+import { api, RentalUnitSuggestionItem, SuggestionChatTranscriptMessage } from '../api'
 
 const STARTER_PROMPTS = [
   'Beach house for a family of four, budget around $200/night',
@@ -13,7 +14,9 @@ const STARTER_PROMPTS = [
 ]
 
 export default function SuggestChatPage() {
+  const navigate = useNavigate()
   const [messages, setMessages] = useState<SuggestionChatTranscriptMessage[]>([])
+  const [suggestionsByMsgId, setSuggestionsByMsgId] = useState<Map<string, RentalUnitSuggestionItem[]>>(new Map())
   const [historyLoading, setHistoryLoading] = useState(true)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -57,8 +60,15 @@ export default function SuggestChatPage() {
     setSending(true)
 
     try {
-      await api.rentalUnits.suggest({ description: raw })
+      const { suggestions } = await api.rentalUnits.suggest({ description: raw })
       const { messages: rows } = await api.rentalUnits.suggestHistory()
+      // Associate the returned suggestions with the last assistant message
+      if (suggestions.length > 0) {
+        const lastAssistant = [...rows].reverse().find(m => m.role === 'assistant')
+        if (lastAssistant) {
+          setSuggestionsByMsgId(prev => new Map(prev).set(lastAssistant.id, suggestions))
+        }
+      }
       setMessages(rows)
     } catch (e) {
       setInput(raw)
@@ -157,6 +167,7 @@ export default function SuggestChatPage() {
                     </div>
                   )
                 }
+                const suggestions = suggestionsByMsgId.get(msg.id) ?? []
                 return (
                   <div key={msg.id} className="flex justify-start">
                     <div className="max-w-[95%] rounded-2xl rounded-bl-md bg-white border border-outline-variant px-4 py-3 shadow-sm">
@@ -165,6 +176,45 @@ export default function SuggestChatPage() {
                         StayDesk
                       </div>
                       <ChatMarkdown content={msg.content} tone="assistant" />
+
+                      {suggestions.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-outline-variant space-y-2">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">
+                            Suggested Properties
+                          </p>
+                          {suggestions.map(({ rentalUnit, reason }) => (
+                            <div
+                              key={rentalUnit._id}
+                              className="flex items-center gap-3 p-3 rounded-xl bg-surface-container-low border border-outline-variant"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-sm text-on-surface truncate">{rentalUnit.name}</p>
+                                <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                                  {(rentalUnit.city || rentalUnit.state) && (
+                                    <span className="flex items-center gap-1 text-xs text-on-surface-variant">
+                                      <MapPin size={10} className="shrink-0" />
+                                      {[rentalUnit.city, rentalUnit.state].filter(Boolean).join(', ')}
+                                    </span>
+                                  )}
+                                  <span className="text-xs font-semibold text-primary">
+                                    ${rentalUnit.pricePerNight}/night
+                                  </span>
+                                </div>
+                                {reason && (
+                                  <p className="text-xs text-on-surface-variant mt-1 line-clamp-1">{reason}</p>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => navigate(`/?unitId=${rentalUnit._id}`)}
+                                className="shrink-0 flex items-center gap-1.5 bg-primary text-on-primary text-xs font-semibold px-3 py-2 rounded-lg hover:opacity-90 active:scale-95 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1"
+                              >
+                                <CalendarCheck size={13} />
+                                Book
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   Building2, Calendar, User, CheckCircle, MapPin,
   ArrowRight, Clock, LayoutDashboard, CalendarCheck, TrendingUp,
@@ -51,6 +51,7 @@ export default function BookingPage() {
   } | null>(null)
 
   const bookSectionRef = useRef<HTMLElement>(null)
+  const [searchParams] = useSearchParams()
   const today = new Date().toISOString().slice(0, 10)
 
   useEffect(() => {
@@ -72,6 +73,14 @@ export default function BookingPage() {
     if (preselect) setSelectedUnit(preselect)
     setTimeout(() => bookSectionRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
   }
+
+  // Pre-select unit from ?unitId query param once units are loaded
+  useEffect(() => {
+    if (unitsLoading) return
+    const unitId = searchParams.get('unitId')
+    if (unitId) scrollToBook(unitId)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unitsLoading])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
